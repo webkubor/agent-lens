@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Lens</title>
+<link rel="stylesheet" href="style.css">
+<script src="app.js" type="module"></script>
+</head>
+<body>
+<header class="hero">
+  <div class="hero-text">
+    <h1>Agent 透镜</h1>
+    <p class="lede">同一个网关后面，你用的每一个 Agent 工具，到底在花你的钱。</p>
+  </div>
+  <div class="seg" role="tablist" id="periods" aria-label="统计周期">
+    <button type="button" role="tab" data-period="today">今天</button>
+    <button type="button" role="tab" data-period="7d">7 天</button>
+    <button type="button" role="tab" data-period="30d">30 天</button>
+  </div>
+</header>
+
+<main>
+  <section class="cards" id="cards" aria-label="总览"></section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>工具定义重量</h2>
+      <p class="hint">每次请求都重发的工具声明，占输入的比例。越重，你的账单越贵。</p>
+    </div>
+    <div id="tools"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Agent 对比</h2>
+      <p class="hint">按工具重量排序。点击一行展开细节。</p>
+    </div>
+    <div id="agents"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>缓存与稳定性</h2>
+      <p class="hint">缓存命中率越高、错误率越低，这个 agent 越划算。</p>
+    </div>
+    <div id="quality"></div>
+  </section>
+
+  <p class="empty" id="empty" hidden></p>
+  <p class="error" id="error" hidden></p>
+</main>
+
+<footer>
+  <p>数据只在本机，不联网上报。<span id="stamp"></span></p>
+</footer>
+</body>
+</html>
