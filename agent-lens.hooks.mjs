@@ -18,7 +18,7 @@
 // tool arguments, the credentials. Only names, counts and numbers, so the
 // file it writes is safe to keep and to show.
 //
-// The rows go to one JSON file under the plugin's own directory. The page (a
+// The rows go to ~/.config/magpie/agent-lens/tools.jsonl (or dataDir). The page (a
 // local service next to it) reads that file and draws the comparison.
 //
 // The gateway's contract for this file:
@@ -32,13 +32,10 @@
 //     fine, a missing row is not a wrong row.
 
 import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
+import { dirname } from "node:path"
+import { measureTools } from "./lib/measure.mjs"
+import { toolsLog } from "./lib/paths.mjs"
 
-// The plugin's own directory: the hooks file sits beside the service and
-// the page, so the data file goes there too (or where dataDir says).
-const HERE = dirname(fileURLToPath(import.meta.url))
-const DATA_FILE = "data/agent-lens.jsonl"
 
 // Rows older than this are dropped when the file is rewritten: the file is
 // a rolling window of the recent past, not a ledger of all time.
@@ -57,85 +54,15 @@ let OPTIONS = {
   agents: [],
 }
 
-// The service's address, learned from the port the gateway gave the plugin.
-// The page is served by the service, and the service has to be up before the
-// page opens.
-let SERVICE = null
-
 function dataPath() {
-  const dir = OPTIONS.dataDir ? resolve(OPTIONS.dataDir) : HERE
-  return join(dir, DATA_FILE)
+  return toolsLog(OPTIONS)
 }
 
 // The agent names this hook watches; empty means all of them.
-export function wanted(agent) {
+function wanted(agent) {
   if (!agent) return false
   if (!Array.isArray(OPTIONS.agents) || OPTIONS.agents.length === 0) return true
   return OPTIONS.agents.some((a) => String(a).trim().toLowerCase() === String(agent).toLowerCase())
-}
-
-// The size of a tool declaration, per protocol. magpie speaks four shapes
-// to four families of models, and the tools live in a different place in
-// each:
-//
-//   anthropic (/v1/messages):     tools: [{ name, description, input_schema }]
-//   chat (/v1/chat/completions):   tools: [{ type, function: {...} }]
-//   responses (/v1/responses):     tools: [{ type, name, parameters }]
-//   gemini (…/streamGenerateContent): tools: [{ functionDeclarations: [...] }]
-//
-// The numbers that matter for a cost comparison are the count and the
-// bytes: the bytes are what the model reads again on every turn.
-export function measureTools(body) {
-  const out = { count: 0, bytes: 0, names: [] }
-  if (!body || typeof body !== "object") return out
-
-  const tools = Array.isArray(body.tools) ? body.tools : null
-  if (!tools) return out
-
-  for (const t of tools) {
-    if (!t || typeof t !== "object") continue
-    // A namespace's tools are its own tools (OpenAI responses).
-    if (Array.isArray(t.tools)) {
-      const inner = measureTools({ tools: t.tools })
-      out.count += inner.count
-      out.bytes += inner.bytes
-      out.names.push(...inner.names)
-      continue
-    }
-    // Gemini puts them one level deeper, under functionDeclarations.
-    if (Array.isArray(t.functionDeclarations)) {
-      for (const fd of t.functionDeclarations) {
-        out.count++
-        out.bytes += sizeOf(fd)
-        if (fd && typeof fd.name === "string") out.names.push(fd.name)
-      }
-      continue
-    }
-    // OpenAI chat wraps them in a function object.
-    if (t.function && typeof t.function === "object") {
-      out.count++
-      out.bytes += sizeOf(t.function)
-      if (typeof t.function.name === "string") out.names.push(t.function.name)
-      continue
-    }
-    // Anthropic and OpenAI responses keep them flat.
-    out.count++
-    out.bytes += sizeOf(t)
-    if (typeof t.name === "string") out.names.push(t.name)
-  }
-  return out
-}
-
-// The size of one declaration, in bytes of JSON. This is a proxy for the
-// tokens the model reads, not a token count: JSON is not BPE, and no
-// tokenizer is exact for every provider. It is the same measure for every
-// agent, which is what a comparison needs.
-export function sizeOf(value) {
-  try {
-    return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8")
-  } catch {
-    return 0
-  }
 }
 
 // The tokens a reply reports, in the shapes the four protocols use.
@@ -253,12 +180,3 @@ async function prune(file, cutoff) {
   return out
 }
 
-// The service: the page's way into the data. The gateway starts the
-// plugin's host part, which runs this, and the page (sandboxed, with
-// connect-src 'none') navigates to it.
-export async function startService() {
-  if (SERVICE) return SERVICE
-  const { serve } = await import("./service.mjs")
-  SERVICE = await serve({ port: OPTIONS.port, dataPath: dataPath() })
-  return SERVICE
-}

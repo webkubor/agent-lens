@@ -31,3 +31,19 @@
 - 评审页「复制完整任务」按钮的剪贴板检查：执行时浏览器控制权在用户手上，已停下，未测
 - 评审页 SVG / JSON 下载链接：未点击测试
 - 16px、彩色底、纹理底、色觉模拟：未做
+
+---
+
+# v2（叠镜，当前版本）
+
+素材：lens.svg sha256 `��`，lens-dark.svg sha256 `��`（2026-11-09）。概念来源：museav gpt-image-2.6 生成的 6 张概念图里用户选定的 #5，原图在 `../concepts/`。
+
+| 文件 | 素材 | 背景 | 尺寸 |
+|---|---|---|---|
+| v2-lens-{32,128}-on-{light,dark}.png | lens.svg | #FFFFFF / #0D1117 | 32 / 128px |
+| v2-lens-dark-{32,128}-on-{light,dark}.png | lens-dark.svg | #FFFFFF / #0D1117 | 32 / 128px |
+| v2-lens-sheet.png | 两版 | 浅底、深底、暖白 #F4F1EA | 16 / 32 / 128px（小图放大 4 倍） |
+
+渲染：rsvg-convert + Pillow 合成。128px 四角 alpha 为 0，包围盒 (18,25,110,104)。
+
+v2 未做：评审页浏览器截图（当时浏览器 MCP 进程崩溃）、色觉模拟。16px 能认出轮廓，但深青层与石墨层会糊在一起。v1（mark*）文件仅作历史对照保留，v1 素材见 assets/v1-old.svg。

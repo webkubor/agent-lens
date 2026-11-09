@@ -1,12 +1,16 @@
 {
   "name": "agent-lens",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A magpie gateway plugin that shows what each agent behind your gateway actually costs you: tokens, money, and the weight of the tool definitions it re-sends on every turn",
   "type": "module",
   "files": [
+    "index.mjs",
     "agent-lens.hooks.mjs",
     "service.mjs",
+    "lib",
     "page",
+    "app",
+    "brand/assets",
     "README.md",
     "LICENSE"
   ],
@@ -39,7 +43,18 @@
     "options": {
       "port": 3492,
       "dataDir": "",
+      "usageLog": "",
+      "agents": [],
       "gatewayTimeoutMs": 2000
     }
+  },
+  "main": "./index.mjs",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "dev": "node service.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webkubor/agent-lens.git"
   }
 }
