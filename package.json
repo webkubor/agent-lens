@@ -1,0 +1,45 @@
+{
+  "name": "agent-lens",
+  "version": "0.1.0",
+  "description": "A magpie gateway plugin that shows what each agent behind your gateway actually costs you: tokens, money, and the weight of the tool definitions it re-sends on every turn",
+  "type": "module",
+  "files": [
+    "agent-lens.hooks.mjs",
+    "service.mjs",
+    "page",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "magpie",
+    "magpie-plugin",
+    "agent",
+    "usage",
+    "cost",
+    "comparison",
+    "llm-gateway"
+  ],
+  "license": "MIT",
+  "magpie": {
+    "hooks": "./agent-lens.hooks.mjs",
+    "page": {
+      "title": "Agent Lens",
+      "titles": {
+        "zh": "Agent 透镜",
+        "zh-TW": "Agent 透鏡",
+        "ja": "Agent レンズ"
+      },
+      "file": "page/index.html",
+      "icon": "page/icon.svg",
+      "service": {
+        "port": 3492,
+        "option": "port"
+      }
+    },
+    "options": {
+      "port": 3492,
+      "dataDir": "",
+      "gatewayTimeoutMs": 2000
+    }
+  }
+}
