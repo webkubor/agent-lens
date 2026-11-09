@@ -7,10 +7,13 @@
   --muted: #6b6b66;
   --line: #e3e3df;
   --card: #ffffff;
-  --accent: #3b6ea5;
-  --accent-soft: #e8f0f8;
-  --warn: #a8623b;
-  --warn-soft: #f6ece4;
+  /* brand: 深青 #13606E + 琥珀 #F0A23B（琥珀只标最重/最贵的那一项） */
+  --accent: #13606E;
+  --accent-soft: #e3efef;
+  --on-accent: #ffffff;
+  --hot: #F0A23B;
+  --warn: #9a5a10;
+  --warn-soft: #fbf0df;
   --good: #4a7c59;
   --good-soft: #e9f2ec;
   --bar: #d8d8d2;
@@ -23,10 +26,12 @@
     --muted: #9a9a93;
     --line: #2e2e2b;
     --card: #232320;
-    --accent: #7aa8d4;
-    --accent-soft: #1e2a35;
-    --warn: #d09a72;
-    --warn-soft: #2e241c;
+    --accent: #5FB8C4;
+    --accent-soft: #16302f;
+    --on-accent: #0d1117;
+    --hot: #F0A23B;
+    --warn: #F0A23B;
+    --warn-soft: #2e2416;
     --good: #85b795;
     --good-soft: #1e2a21;
     --bar: #3a3a36;
@@ -56,6 +61,8 @@ body {
   padding: 32px 0 20px;
 }
 
+/* logo */
+.mark { float: left; margin: 2px 12px 0 0; }
 h1 {
   margin: 0;
   font-size: 26px;
@@ -95,7 +102,7 @@ h1 {
 
 .seg button[aria-selected="true"] {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .seg button:focus-visible {
@@ -192,7 +199,7 @@ main { max-width: 980px; margin: 0 auto; }
   border-radius: 5px;
 }
 
-.bar-fill.heavy { background: var(--warn); }
+.bar-fill.heavy { background: var(--hot); }
 
 .bar-val {
   text-align: right;

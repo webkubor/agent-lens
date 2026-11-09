@@ -99,9 +99,10 @@ function paint() {
 function paintTools(s) {
   const max = Math.max(...s.agents.map((a) => a.toolBytesPerCall), 1)
   $("tools").innerHTML = s.agents
-    .map((a) => {
+    .map((a, i) => {
       const w = (a.toolBytesPerCall / max) * 100
-      const heavy = a.toolShare > 0.03 ? " heavy" : ""
+      // amber marks the heaviest one only
+      const heavy = i === 0 ? " heavy" : ""
       return `<div class="bar-row">
         <div class="bar-name">${a.agent}</div>
         <div class="bar-track"><div class="bar-fill${heavy}" style="width:${w.toFixed(1)}%"></div></div>

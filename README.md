@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source srcset="brand/assets/mark-dark.svg" media="(prefers-color-scheme: dark)">
+    <img src="brand/assets/mark.svg" width="96" alt="Agent Lens">
+  </picture>
+</p>
+
 # Agent Lens
 
 > 看清楚：同一个网关后面，你用的每一个 Agent 工具，到底在花你的钱。
@@ -35,6 +42,22 @@ magpie hooks (Bun)  →  本地 JSON  →  本地服务  →  页面
 magpie plugin add github:webkubor/agent-lens
 ```
 
+## 预览
+
+![Agent Lens 深色主题预览](docs/preview-dark.png)
+
+> 截图说明：请求数、token、缓存命中来自作者本机网关的真实用量记录；**「工具定义重量」那几列是模拟数据**，用来演示版面。真实数值要等 hooks 接入网关后采集。
+
+## 品牌
+
+| Token | 色值 | 用法 |
+|---|---|---|
+| primary | `#13606E` 深青 | 浅底主色、选中态 |
+| accent | `#F0A23B` 琥珀 | 只标「最重 / 最贵」的那一项 |
+| onDark | `#E6F1F0` | 深底上的标识 |
+
+标识：放大镜罩住三根长短不一的条，表示把网关后面的几个 agent 摆在一起比，最长那根（最花钱的）用琥珀色。源文件与评审页在 [`brand/`](brand/)。
+
 ## 状态
 
-开发中。
+开发中（MVP）。页面与汇总逻辑已在本机用真实用量验证；hooks 采集端尚未接入真实网关做端到端验证。

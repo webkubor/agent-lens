@@ -1,0 +1,40 @@
+{
+  "projects": [
+    {
+      "id": "agent-lens",
+      "name": "Agent Lens · 首个标识",
+      "tokens": {
+        "primary": "#13606E",
+        "accent": "#F0A23B",
+        "onLight": "#13606E",
+        "onDark": "#E6F1F0",
+        "background": "transparent"
+      },
+      "tokenSources": {
+        "primary": "本次建议：深青（光学镜片色），与同目录 fovea 的蓝 #7fb0e8 区分开；项目此前无品牌色",
+        "accent": "本次建议：琥珀色，只用来标「最贵的那一项」，对应页面里的花费热点",
+        "onLight": "本次建议：浅底沿用 primary",
+        "onDark": "本次建议：深底用浅青白，琥珀不变",
+        "background": "本次建议：透明画布"
+      },
+      "rationale": [
+        "本次解释：放大镜罩住三根长短不一的条，意思是把网关后面几个 agent 摆在一起比；最长那根是琥珀色，表示最花钱的那个一眼能看出来。"
+      ],
+      "userDecisions": [
+        "用户要求：为 agent-lens 设计 logo 和主题色，并推送到 GitHub。名字 agent-lens 由用户确认。"
+      ],
+      "recommendations": [
+        "页面主题色同步换成这套青 + 琥珀；琥珀只留给「最重 / 最贵」的提示，不当装饰色。"
+      ],
+      "asset": "assets/mark.svg",
+      "darkAsset": "assets/mark-dark.svg",
+      "oldAsset": null,
+      "sources": [
+        {
+          "url": "https://github.com/webkubor/agent-lens",
+          "label": "项目仓库"
+        }
+      ]
+    }
+  ]
+}
