@@ -118,12 +118,56 @@ v0.4.0。原名 Agent Lens，因与多个同名项目撞车，在 0.4.0 改名�
 
 ## English
 
-HarnessWeight is a [magpie](https://github.com/yetone/magpie) plugin that compares the AI agents behind your gateway — Claude Code, Codex, zcode, Cursor and others — **by agent** rather than by model: input tokens, cache hit rate, tokens billed at full price, failure rate, latency, and the weight of the tool definitions each agent re-sends on every turn.
+**HarnessWeight** is a [magpie](https://github.com/yetone/magpie) plugin that weighs every
+**agent harness** running behind your gateway — Claude Code, Codex, ZCode, Cursor,
+DeepSeek Harness — **by agent, not by model**.
+
+magpie's own usage page groups by model. Model pricing tells you what a token costs.
+Neither tells you how many tokens your *harness* burns before the model reads a single
+word: every harness re-sends its whole `tools` array on every turn, billed as input,
+every request, for the whole session. Only the gateway can see that.
+
+### What it measures
+
+| Column | Where it comes from |
+|---|---|
+| Input tokens, output tokens, cache hits, tokens at full price | the gateway's own usage ledger |
+| **Tool definition weight** — how many tools per request, how many bytes, how many tokens, and what share of the input they are | a read-only `magpie.hooks` plugin measuring the `tools` array on every request |
+| Failure rate, p50 latency, p50 time-to-first-token | the usage ledger |
+| Agent display names and icons | magpie's own agent registry, so they match your sidebar |
+
+### Measured on a real gateway (7 days, 83,420 requests)
+
+- **Claude Code re-sends 36,487 tokens of tool definitions per request — 25.8% of every
+  token the model reads.** DeepSeek Harness sends *more* tools (58 vs 44) for 13,117
+  tokens, i.e. 5.9% of its input. Tool count is a bad proxy for tool cost.
+- Cache hit rate ranged from 94.4% (Claude Code) to 77.2% (Claude Desktop) on the same
+  gateway — a bigger lever than any tool tuning.
+
+Full method, all seven harnesses and the caveats:
+**[docs/benchmark.md](docs/benchmark.md)**.
+
+### Install
 
 ```sh
 magpie plugin add github:webkubor/harnessweight
 ```
 
-It reads magpie's own `usage.jsonl`, so history shows up right away, and adds a read-only gateway hook that samples tool-definition sizes. Everything stays on your machine; the hook records names and numbers only, never prompts, arguments or credentials.
+Zero runtime dependencies. The local service binds 127.0.0.1 only, generates a random
+token per start, and validates `Host` and `Origin`. It reads nothing outside your
+machine and sends nothing out. A read-only hook records tool names, counts, byte sizes
+and token numbers — never prompts, arguments or credentials.
+
+### Privacy
+
+Everything is read locally; there is no telemetry and no network egress. The
+`permissions: []` plugin bridge is declared empty and a test asserts the page makes no
+network request of its own.
+
+## 社区收录
+
+- 社区仓 PR：[magpie-community/plugins#922](https://github.com/magpie-community/plugins/pull/922)（审核中，合并后可用 `@magpie-community/page-harnessweight` 安装）
+- 登记条目：`registry.json` 里的 `@magpie-community/page-harnessweight`
+- 社区 README 的 Pages 和 Gateway hooks 两张表各有一行
 
 MIT © webkubor
