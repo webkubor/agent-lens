@@ -17,6 +17,7 @@ import { createToolsReader } from "./lib/tools.mjs"
 import { createUsageReader } from "./lib/usage.mjs"
 import { PERIODS, summarize } from "./lib/summarize.mjs"
 import { createBrands } from "./lib/brands.mjs"
+import { activity } from "./lib/activity.mjs"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const APP = join(HERE, "app")
@@ -75,6 +76,10 @@ export function createHandler(options = {}) {
         cors()
         // the service restarted and the token changed: the page reloads once
         return json(res, 403, { error: "stale token", reload: true })
+      }
+      if (url.pathname === "/api/activity") {
+        cors()
+        return json(res, 200, activity.snapshot(tools.file))
       }
       if (url.pathname === "/api/summary") {
         await Promise.all([usage.refresh(), tools.refresh(), brands.refresh()])

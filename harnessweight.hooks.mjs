@@ -35,6 +35,7 @@ import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/pr
 import { dirname } from "node:path"
 import { measureTools } from "./lib/measure.mjs"
 import { toolsLog } from "./lib/paths.mjs"
+import { activity } from "./lib/activity.mjs"
 
 
 // Rows older than this are dropped when the file is rewritten: the file is
@@ -110,12 +111,20 @@ function row(ctx, body, reply, success) {
 // exactly as it came.
 export async function onRequest(body, ctx) {
   OPTIONS = { ...OPTIONS, ...(ctx?.options ?? {}) }
+  const agent = ctx?.agent ?? "unknown"
+  // ctx.state survives until onResponse. ctx.signal does NOT: the host
+  // aborts it when this hook returns, even while the model is still running.
+  try {
+    if (wanted(agent)) activity.start(dataPath(), ctx, agent)
+  } catch { /* Tracking must never interrupt the user's request. */ }
   return undefined
 }
 
 // The hook's other entry point: called after the model replied. This is
 // where the row is written.
 export async function onResponse(reply, ctx) {
+  // Clear before any filtering or disk work, including failed responses.
+  try { activity.finish(ctx) } catch { /* best-effort telemetry */ }
   OPTIONS = { ...OPTIONS, ...(ctx?.options ?? {}) }
   const agent = ctx?.agent ?? "unknown"
   if (!wanted(agent)) return

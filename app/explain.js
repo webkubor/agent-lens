@@ -21,15 +21,15 @@ export const EXPLAIN = {
   },
   fullPrice: {
     title: "按原价",
-    body: "没有命中缓存、按原价计费的 token（新鲜输入 + 缓存写入）。这一栏就是实打实花掉的钱，比「输入 token」更接近账单。",
+    body: "新鲜输入与缓存写入的 token 合计，不含缓存读取。这里统计的是数量，不是金额；不同模型、供应商的缓存写入价格也可能不同。",
   },
   out: {
     title: "输出 token",
-    body: "模型生成回来的 token。通常比输入便宜得多，但长回答也会累积。",
+    body: "模型生成回来的 token。输入和输出通常采用不同单价，输出单价也可能更高；请以实际供应商账单为准。",
   },
   errorRate: {
     title: "失败率",
-    body: "返回 4xx/5xx 或出错的请求占比。失败的请求一样读了 prompt、一样计费，所以它同时是成本项和体验问题。",
+    body: "出错请求占比；主动取消单独统计。失败是否消耗 token 或收费，取决于失败发生的阶段和供应商回执。",
   },
   calls: {
     title: "请求",
@@ -45,7 +45,7 @@ export const EXPLAIN = {
   },
   toolTokens: {
     title: "工具 token/次",
-    body: "每次请求重发的工具定义（工具名 + 参数 schema + 描述）折算成多少 token。这部分按输入 token 计费，每一轮都付。只有网关看得到。",
+    body: "在网关采样工具名、参数 schema 和描述的 JSON 体积，以字节数 ÷ 3.5 估算 token。不是精确 tokenizer 计数；可能命中缓存，也不等于实际费用。",
   },
   toolShare: {
     title: "占输入比",
@@ -57,7 +57,7 @@ export const EXPLAIN = {
   },
   sessionMedian: {
     title: "单次会话时长",
-    body: "同一个会话（session）从第一次请求到最后一次请求隔了多久，中位数。反映「一次对话大概用多久」。",
+    body: "所选窗口内，同一 session 首末请求的跨度中位数，包含闲置，不是持续工作时间。超过 6 小时的会话目前不参与时长统计。",
   },
   sessionP90: {
     title: "长会话 p90",
@@ -69,11 +69,11 @@ export const EXPLAIN = {
   },
   protocol: {
     title: "接入协议",
-    body: "这个 harness 走网关时用的接口格式。协议不同，同一个模型的计费和缓存行为可能不一样——所以对比时要先看这一栏是不是一致。",
+    body: "根据用量日志端点统计所选范围内的协议分布，可能包含网关转换后的上游协议。不能当作当前客户端配置。",
   },
   live: {
     title: "正在使用",
-    body: "这个 Agent 刚刚还有请求经过网关。呼吸的光晕表示它现在活跃。",
+    body: "网关 hook 已记录请求开始、尚未收到对应结束回调的数量，每约 2 秒刷新。丢失结束回调的记录最多保留 15 分钟；这是观测状态，不是 Agent 的后台进程状态。",
   },
   fullPriceShare: {
     title: "按原价占比",
