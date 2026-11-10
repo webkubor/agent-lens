@@ -13,9 +13,9 @@
 
 ![Agent Lens 浅色主题](docs/preview-light.png)
 
-<video src="https://github.com/webkubor/agent-lens/raw/main/docs/demo.mp4" controls muted playsinline width="100%"></video>
+[![▶ 30 秒演示视频（点击播放）](docs/demo-poster.jpg)](https://github.com/webkubor/agent-lens/releases/download/v0.3.0/agent-lens-demo.mp4)
 
-> 30 秒演示：结论 → Agent 卡片 → 排序 → 详情 → 切 30 天 → 深色。播放不了可以[直接下载](https://github.com/webkubor/agent-lens/releases/download/v0.3.0/agent-lens-demo.mp4)。
+> ▶ 30 秒演示：结论 → Agent 卡片 → 排序 → 详情 → 切 30 天 → 深色。
 
 > 截图是作者本机 7 天的真实用量，在和 magpie 一样的沙箱框架里实拍，没有模拟数据。Agent 名字和图标与 magpie 自己显示的一致。
 
