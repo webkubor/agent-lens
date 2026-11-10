@@ -3,10 +3,15 @@
 
 const $ = (id) => document.getElementById(id)
 const qs = new URLSearchParams(location.search)
+// sandboxed in magpie's frame the origin is opaque and storage throws
+const store = {
+  get(k) { try { return localStorage.getItem(k) } catch { return null } },
+  set(k, v) { try { localStorage.setItem(k, v) } catch {} },
+}
 
 const state = {
-  period: localStorage.getItem("al.period") || "7d",
-  clients: localStorage.getItem("al.clients") === "1",
+  period: store.get("al.period") || "7d",
+  clients: store.get("al.clients") === "1",
   sort: { key: "prompt", dir: -1 },
   data: null,
   openAgent: null,
@@ -55,6 +60,7 @@ function paint() {
     showState("这段时间网关没有记录到 Agent 的请求。用任意 Agent 走一次网关，再回来刷新。")
     return
   }
+  paintStatus(d)
   paintInsights(d)
   paintKpis(d)
   paintCards(d)
@@ -63,6 +69,23 @@ function paint() {
   const s = d.sources || {}
   $("sources").textContent = `用量记录 ${int(s.usageRows)} 条 · 工具采样 ${int(s.toolRows)} 条 · 更新于 ${new Date(d.generatedAt).toLocaleTimeString("zh-CN")}`
   if (state.openAgent) openDetail(state.openAgent, false)
+}
+
+function ago(t) {
+  if (!t) return "还没有"
+  const s = Math.max(0, (Date.now() - t) / 1000)
+  if (s < 60) return `${Math.round(s)} 秒前`
+  if (s < 3600) return `${Math.round(s / 60)} 分钟前`
+  if (s < 86400) return `${Math.round(s / 3600)} 小时前`
+  return `${Math.round(s / 86400)} 天前`
+}
+function paintStatus(d) {
+  const fresh = d.lastTool && Date.now() - d.lastTool < 15 * 60e3
+  const el = $("status")
+  el.className = "status " + (fresh ? "live" : d.lastTool ? "idle" : "wait")
+  el.textContent = fresh ? `采集中 · 最近一次请求 ${ago(d.lastUsage)} · 工具采样 ${ago(d.lastTool)}`
+    : d.lastTool ? `15 分钟内没有新采样 · 上次 ${ago(d.lastTool)}（用一下 Agent 就会恢复）`
+    : "hook 已装好，等第一条请求经过网关"
 }
 
 function paintInsights(d) {
@@ -241,14 +264,14 @@ $("periods").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-period]")
   if (!b || b.dataset.period === state.period) return
   state.period = b.dataset.period
-  localStorage.setItem("al.period", state.period)
+  store.set("al.period", state.period)
   selectPeriod()
   load()
 })
 $("clients").checked = state.clients
 $("clients").addEventListener("change", (e) => {
   state.clients = e.target.checked
-  localStorage.setItem("al.clients", state.clients ? "1" : "0")
+  store.set("al.clients", state.clients ? "1" : "0")
   load()
 })
 const pick = (e) => e.target.closest("[data-agent]")?.dataset.agent

@@ -32,6 +32,10 @@ export function createHandler(options = {}) {
     res.setHeader("Cache-Control", "no-store")
     res.setHeader("X-Content-Type-Options", "nosniff")
     res.setHeader("Referrer-Policy", "no-referrer")
+    // magpie's page frame is sandboxed (allow-scripts, no same-origin): after it
+    // navigates here its origin is the opaque "null", so even its own module
+    // script and fetches are cross-origin. Allow that one origin, nothing else.
+    if (req.headers.origin === "null") res.setHeader("Access-Control-Allow-Origin", "null")
     try {
       if (url.pathname === "/api/summary") {
         await Promise.all([usage.refresh(), tools.refresh()])

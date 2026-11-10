@@ -136,3 +136,10 @@ td.agent { font-weight: 600; }
   .card-big { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) { .card, .drawer { transition: none; } .skeleton { animation: none; } }
+
+.status { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 2px; font-size: 12px; color: var(--muted); }
+.status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.status.live { color: var(--teal-ink); } .status.live::before { background: var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); animation: pulse 2s ease-in-out infinite; }
+.status.idle::before { background: var(--yellow); }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px transparent; } }
+@media (prefers-reduced-motion: reduce) { .status.live::before { animation: none; } }
