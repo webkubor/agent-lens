@@ -18,11 +18,16 @@ import { createUsageReader } from "./lib/usage.mjs"
 import { PERIODS, summarize } from "./lib/summarize.mjs"
 import { createBrands } from "./lib/brands.mjs"
 import { activity } from "./lib/activity.mjs"
+// the same table the page imports, so both sides speak one language
+import { pageLanguage, languageTags } from "./app/i18n.mjs"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const APP = join(HERE, "app")
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+  // app/i18n.mjs is a module both sides import, so the browser must get a
+  // JavaScript media type for it.
+  ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp",
 }
 
@@ -35,7 +40,7 @@ const MIME = {
 export const TOKEN_HEADER = "x-harnessweight-token"
 
 export function createHandler(options = {}) {
-  const port = Number(options.port) > 0 ? Number(options.port) : 3492
+  const port = Number(options.port) > 0 ? Number(options.port) : 3496
   const token = options.token || randomBytes(32).toString("hex")
   const own = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`])
   const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`])
@@ -85,11 +90,15 @@ export function createHandler(options = {}) {
         await Promise.all([usage.refresh(), tools.refresh(), brands.refresh()])
         const period = PERIODS[url.searchParams.get("period")] ? url.searchParams.get("period") : "7d"
         const tz = Number(url.searchParams.get("tz"))
+        // the page sends the language it rendered in, so the insights it gets
+        // back are in the same language as the rest of the page
+        const lang = pageLanguage(url.searchParams.get("lang"))
         const body = summarize({
           usage: usage.rows(), tools: tools.rows(), period,
           showClients: url.searchParams.get("clients") === "1",
           tzOffsetMin: Number.isFinite(tz) ? tz : 0,
           nameOf: (a) => brands.of(a).name,
+          lang,
         })
         for (const a of body.agents) {
           const b = brands.of(a.agent)
@@ -102,7 +111,9 @@ export function createHandler(options = {}) {
       if (url.pathname === "/api/health") {
         return json(res, 200, { ok: true, service: "harnessweight" })
       }
-      const rel = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1))
+      let rel
+      try { rel = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1)) }
+      catch { return text(res, 400, "bad path") }
       const full = normalize(join(APP, rel))
       if (!full.startsWith(APP + sep)) return text(res, 400, "bad path")
       const content = await readFile(full).catch(() => null)
@@ -110,7 +121,12 @@ export function createHandler(options = {}) {
       const ext = full.slice(full.lastIndexOf("."))
       if (full === join(APP, "index.html")) {
         // the token goes into the HTML, which gets no CORS header
-        const html = content.toString("utf8").replace("<head>", `<head>\n<meta name="harnessweight-token" content="${token}">`)
+        // the lang attribute follows the same ?lang= the page reads, so the
+        // document says what language it is before anything paints
+        const lang = pageLanguage(url.searchParams.get("lang"))
+        const html = content.toString("utf8")
+          .replace("<head>", `<head>\n<meta name="harnessweight-token" content="${token}">`)
+          .replace('<html lang="zh-CN">', `<html lang="${languageTags[lang]}">`)
         res.writeHead(200, { "Content-Type": MIME[".html"] })
         return res.end(html)
       }
@@ -135,7 +151,7 @@ function text(res, code, body) {
 // Start listening. A port still held by a previous host is retried in the
 // background instead of failing the host's start.
 export function serve(options = {}) {
-  const port = Number(options.port) > 0 ? Number(options.port) : 3492
+  const port = Number(options.port) > 0 ? Number(options.port) : 3496
   const server = createServer(createHandler({ ...options, port }))
   const ready = new Promise((resolve) => {
     let tries = 0

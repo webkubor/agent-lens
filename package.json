@@ -38,12 +38,12 @@
       "file": "page/index.html",
       "icon": "page/icon.svg",
       "service": {
-        "port": 3492,
+        "port": 3496,
         "option": "port"
       }
     },
     "options": {
-      "port": 3492,
+      "port": 3496,
       "dataDir": "",
       "usageLog": "",
       "agents": [],

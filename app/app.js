@@ -1,10 +1,20 @@
 // HarnessWeight — the interface. Served by the plugin's own service, so the
 // data is a same-origin fetch away.
 
-import { EXPLAIN, COLS, CARD_SORTS } from "./explain.js"
+import { explainFor, COLS, CARD_SORTS } from "./explain.js"
+import { pageLanguage, languageTags, translate } from "./i18n.mjs"
 
 const $ = (id) => document.getElementById(id)
 const qs = new URLSearchParams(location.search)
+// magpie's window language arrives as ?lang= (page/boot.js); opened directly,
+// the browser's own language decides
+const LANG = pageLanguage(qs.get("lang") || navigator.language || "")
+const LOCALE = languageTags[LANG] || "en"
+const T = (key, params) => translate(LANG, key, params)
+document.documentElement.lang = LOCALE
+document.title = T("app.title")
+for (const el of document.querySelectorAll("[data-t]")) el.textContent = T(el.dataset.t)
+for (const el of document.querySelectorAll("[aria-label-t]")) el.setAttribute("aria-label", T(el.getAttribute("aria-label-t")))
 // sandboxed in magpie's frame the origin is opaque and storage throws
 const store = {
   get(k) { try { return localStorage.getItem(k) } catch { return null } },
@@ -39,7 +49,7 @@ function short(n) {
   if (a >= 1e3) return `${(n / 1e3).toFixed(1)}K`
   return String(Math.round(n))
 }
-const int = (n) => (n == null ? "—" : Math.round(n).toLocaleString("en-US"))
+const int = (n) => (n == null ? "—" : Math.round(n).toLocaleString(LOCALE))
 const pct = (x) => (x == null || !Number.isFinite(x) ? "—" : `${(x * 100).toFixed(1)}%`)
 function secs(ms) {
   if (!ms) return "—"
@@ -48,15 +58,15 @@ function secs(ms) {
 function dur(ms) {
   if (ms == null || !Number.isFinite(ms)) return "—"
   const m = ms / 60000
-  if (m < 1) return `${Math.round(ms / 1000)}秒`
-  if (m < 60) return `${m.toFixed(0)}分`
+  if (m < 1) return `${Math.round(ms / 1000)}${esc(T("dur.second"))}`
+  if (m < 60) return `${m.toFixed(0)}${esc(T("dur.minute"))}`
   const h = m / 60
-  if (h < 24) return `${h.toFixed(1)}小时`
-  return `${(h / 24).toFixed(1)}天`
+  if (h < 24) return `${h.toFixed(1)}${esc(T("dur.hour"))}`
+  return `${(h / 24).toFixed(1)}${esc(T("dur.day"))}`
 }
-function when(t) {
-  if (!t) return "—"
-  return new Date(t).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+function when(at) {
+  if (!at) return "—"
+  return new Date(at).toLocaleString(LOCALE, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
 }
 
 // ---------- agent mark: magpie's own icon, else the initial ----------
@@ -77,9 +87,9 @@ const label = (a) => esc(a.name || a.agent)
 // keyboard focus. The label itself stays plain text; only the marker is a
 // button, so a label never gets squeezed by the marker.
 function tip(key, label) {
-  const e = EXPLAIN[key]
-  if (!e) return label ?? ""
-  return `<span class="tipwrap">${label ?? ""}<span class="tip" tabindex="0" role="button" aria-expanded="false" aria-label="${esc(e.title)}：${esc(e.body)}"><span class="tip-body" role="tooltip"><b>${esc(e.title)}</b>${esc(e.body)}</span></span></span>`
+  const e = explainFor(key, LANG)
+  if (!e.title || e.title.startsWith("explain.")) return label ?? ""
+  return `<span class="tipwrap">${label ?? ""}<span class="tip" tabindex="0" role="button" aria-expanded="false" aria-label="${esc(e.title)}: ${esc(e.body)}"><span class="tip-body" role="tooltip"><b>${esc(e.title)}</b>${esc(e.body)}</span></span></span>`
 }
 
 // Render notes outside scroll containers so table and drawer overflow never clip them.
@@ -133,7 +143,7 @@ function isLive(a) {
 }
 function activityBadge(agent) {
   const count = state.activeAgents.get(agent) || 0
-  return `<span class="live-badge">${tip("live", `${count} 个调用中`)}</span>`
+  return `<span class="live-badge">${tip("live", esc(T("activity.callsInFlight", { n: count })))}</span>`
 }
 async function refreshActivity() {
   if (document.hidden) return
@@ -149,8 +159,8 @@ async function refreshActivity() {
     state.activeAgents.clear()
   }
   $('activityInfo').textContent = state.activityKnown
-    ? '流光边框表示网关观察到该 Agent 有调用进行中。'
-    : '实时调用状态暂不可用；没有流光不代表 Agent 空闲。'
+    ? T("activity.liveHint")
+    : T("activity.unavailableHint")
   for (const card of document.querySelectorAll('.card[data-agent]')) {
     const active = state.activityKnown && (state.activeAgents.get(card.dataset.agent) || 0) > 0
     card.classList.toggle('live', active)
@@ -187,7 +197,7 @@ function paint() {
   if (!d.agents.length) {
     for (const id of ["insights", "kpis", "cards", "tools"]) $(id).innerHTML = ""
     $("table").innerHTML = ""
-    showState("这段时间网关没有记录到 Agent 的请求。用任意 Agent 走一次网关，再回来刷新。")
+    showState(T("state.noAgents"))
     return
   }
   paintStatus(d)
@@ -199,25 +209,25 @@ function paint() {
   paintTools(d)
   wireTips(document)
   const s = d.sources || {}
-  $("sources").textContent = `用量记录 ${int(s.usageRows)} 条 · 工具采样 ${int(s.toolRows)} 条 · 更新于 ${new Date(d.generatedAt).toLocaleTimeString("zh-CN")}`
+  $("sources").textContent = T("sources.summary", { usageRows: int(s.usageRows), toolRows: int(s.toolRows), time: new Date(d.generatedAt).toLocaleTimeString(LOCALE) })
   if (state.openAgent) openDetail(state.openAgent, false)
 }
 
 function ago(t) {
-  if (!t) return "还没有"
+  if (!t) return T("time.none")
   const s = Math.max(0, (Date.now() - t) / 1000)
-  if (s < 60) return `${Math.round(s)} 秒前`
-  if (s < 3600) return `${Math.round(s / 60)} 分钟前`
-  if (s < 86400) return `${Math.round(s / 3600)} 小时前`
-  return `${Math.round(s / 86400)} 天前`
+  if (s < 60) return T("time.secondsAgo", { n: Math.round(s) })
+  if (s < 3600) return T("time.minutesAgo", { n: Math.round(s / 60) })
+  if (s < 86400) return T("time.hoursAgo", { n: Math.round(s / 3600) })
+  return T("time.daysAgo", { n: Math.round(s / 86400) })
 }
 function paintStatus(d) {
   const fresh = d.lastTool && Date.now() - d.lastTool < 15 * 60e3
   const el = $("status")
   el.className = "status " + (fresh ? "live" : d.lastTool ? "idle" : "wait")
-  el.textContent = fresh ? `采集中 · 最近一次请求 ${ago(d.lastUsage)} · 工具采样 ${ago(d.lastTool)}`
-    : d.lastTool ? `15 分钟内没有新采样 · 上次 ${ago(d.lastTool)}（用一下 Agent 就会恢复）`
-    : "hook 已装好，等第一条请求经过网关"
+  el.textContent = fresh ? T("status.collecting", { usage: ago(d.lastUsage), tool: ago(d.lastTool) })
+    : d.lastTool ? T("status.stale", { tool: ago(d.lastTool) })
+    : T("status.waiting")
 }
 
 function paintInsights(d) {
@@ -229,13 +239,13 @@ function paintInsights(d) {
 function paintKpis(d) {
   const t = d.totals
   const items = [
-    ["输入 token", short(t.prompt), `${int(t.calls)} 次请求`, "prompt"],
-    ["缓存命中", pct(t.cacheRate), `按原价算的 ${short(t.fullPrice)}`, "cacheRate"],
-    ["输出 token", short(t.out), `平均 ${short(t.calls ? t.out / t.calls : 0)}/次`, "out"],
-    ["失败", int(t.failed), pct(t.calls ? t.failed / t.calls : 0), "errorRate"],
-    ["Agent", int(d.agents.length), d.hiddenClients ? `另有 ${int(d.hiddenClients)} 次脚本/内部请求未计` : "网关后面的客户端", null],
+    [T("kpi.inputTokens"), short(t.prompt), T("kpi.requests", { count: int(t.calls) }), "prompt"],
+    [T("kpi.cacheRate"), pct(t.cacheRate), T("kpi.fullPriceOf", { value: short(t.fullPrice) }), "cacheRate"],
+    [T("kpi.outputTokens"), short(t.out), T("kpi.avgPerCall", { value: short(t.calls ? t.out / t.calls : 0) }), "out"],
+    [T("kpi.failed"), int(t.failed), pct(t.calls ? t.failed / t.calls : 0), "errorRate"],
+    [T("kpi.agents"), int(d.agents.length), d.hiddenClients ? T("kpi.hiddenClients", { count: int(d.hiddenClients) }) : T("kpi.clients"), null],
   ]
-  if (t.credits > 0) items.splice(4, 0, ["credits", t.credits.toFixed(2), "magpie 记账的按量额度"])
+  if (t.credits > 0) items.splice(4, 0, [T("kpi.credits"), t.credits.toFixed(2), T("kpi.creditsNote")])
   $("kpis").innerHTML = items
     .map(([k, v, s, tipKey]) => `<div class="kpi"><div class="k">${tipKey ? tip(tipKey, k) : k}</div><div class="v num">${v}</div><div class="s">${esc(s)}</div></div>`)
     .join("")
@@ -251,16 +261,16 @@ function paintCards(d) {
       const top1 = a.prompt === max && d.agents.length > 1
       const live = isLive(a)
       const proto = a.protocols?.[0]?.name
-      return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${label(a)} 详情">
-        <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${live ? activityBadge(a.agent) : ""}${top1 ? '<span class="tag">花得最多</span>' : ""}</div>
-        <div class="card-big num">${short(a.prompt)}<small>输入 token</small></div>
-        <div class="stack" title="浅色：缓存读取；深色：按原价"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>
+      return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${esc(T("card.detailsAria", { name: a.name || a.agent }))}">
+        <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${live ? activityBadge(a.agent) : ""}${top1 ? `<span class="tag">${esc(T("card.topSpender"))}</span>` : ""}</div>
+        <div class="card-big num">${short(a.prompt)}<small>${esc(T("card.inputTokens"))}</small></div>
+        <div class="stack" title="${esc(T("card.stackLegend"))}"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>
         <div class="card-meta">
-          <div><b class="num">${pct(a.cacheRate)}</b>${tip("cacheRate", "缓存命中")}</div>
-          <div><b class="num">${short(a.avgPrompt)}</b>${tip("avgPrompt", "每次读")}</div>
-          <div><b class="num ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(a.errorRate)}</b>${tip("errorRate", "失败率")}</div>
+          <div><b class="num">${pct(a.cacheRate)}</b>${tip("cacheRate", esc(T("col.cacheRate")))}</div>
+          <div><b class="num">${short(a.avgPrompt)}</b>${tip("avgPrompt", esc(T("col.avgPrompt")))}</div>
+          <div><b class="num ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(a.errorRate)}</b>${tip("errorRate", esc(T("col.errorRate")))}</div>
         </div>
-        ${proto ? `<div class="card-foot"><span class="proto" title="${esc(proto)}">${esc(proto)}</span>${a.session?.median ? `<span class="dur" title="单次会话时长中位数">${dur(a.session.median)}</span>` : ""}</div>` : ""}
+        ${proto ? `<div class="card-foot"><span class="proto" title="${esc(proto)}">${esc(proto)}</span>${a.session?.median ? `<span class="dur" title="${esc(T("card.sessionMedianTitle"))}">${dur(a.session.median)}</span>` : ""}</div>` : ""}
         ${spark(a.series, "prompt")}
       </div>`
     })
@@ -280,8 +290,8 @@ const cardVal = (a, k) => (k === "toolTokens" ? a.tools?.avgTokens ?? -1 : a[k] 
 function paintCardSort() {
   const box = $("cardSort")
   if (!box) return
-  box.innerHTML = CARD_SORTS.map(([k, name]) =>
-    `<button class="pill${state.cardSort === k ? " on" : ""}" data-sort="${k}" aria-pressed="${state.cardSort === k}">${name}</button>`).join("")
+  box.innerHTML = CARD_SORTS.map(([k, nameKey]) =>
+    `<button class="pill${state.cardSort === k ? " on" : ""}" data-sort="${k}" aria-pressed="${state.cardSort === k}">${esc(T(nameKey))}</button>`).join("")
 }
 
 function paintTable(d) {
@@ -291,10 +301,10 @@ function paintTable(d) {
     return typeof a === "string" ? a.localeCompare(b) * dir : ((a ?? 0) - (b ?? 0)) * dir
   })
   const topAgent = d.agents[0]?.agent
-  const head = COLS.map(([k, name, n, tipKey]) => `<th class="${n ? "n" : ""}" data-key="${k}" ${k === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""} tabindex="0">${tipKey ? tip(tipKey, name) : name}</th>`).join("")
+  const head = COLS.map(([k, nameKey, n, tipKey]) => { const name = esc(T(nameKey)); return  `<th class="${n ? "n" : ""}" data-key="${k}" ${k === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""} tabindex="0">${tipKey ? tip(tipKey, name) : name}</th>` }).join("")
   const body = rows
     .map((a) => `<tr tabindex="0" data-agent="${esc(a.agent)}">
-      <td class="agent"><span class="who">${mark(a, 18)}${label(a)}${a.agent === topAgent && d.agents.length > 1 ? '<span class="dot hot" title="花得最多"></span>' : ""}</span></td>
+      <td class="agent"><span class="who">${mark(a, 18)}${label(a)}${a.agent === topAgent && d.agents.length > 1 ? `<span class="dot hot" title="${esc(T("table.topSpenderTitle"))}"></span>` : ""}</span></td>
       <td class="n">${int(a.calls)}</td>
       <td class="n">${short(a.prompt)}</td>
       <td class="n">${short(a.avgPrompt)}</td>
@@ -305,7 +315,7 @@ function paintTable(d) {
       <td class="n">${secs(a.p50ttft)}</td>
       <td class="n">${secs(a.p50ms)}</td>
       <td class="n">${a.tools ? short(a.tools.avgTokens) : "—"}</td>
-      <td class="n proto-cell" title="${a.protocols?.map((p) => p.name).join("、") || ""}">${a.protocols?.length ? esc(a.protocols[0].name) : "—"}</td>
+      <td class="n proto-cell" title="${esc(a.protocols?.map((p) => p.name).join(", ")) || ""}">${a.protocols?.length ? esc(a.protocols[0].name) : "—"}</td>
       <td class="n">${a.session?.median ? dur(a.session.median) : "—"}</td>
     </tr>`)
     .join("")
@@ -315,28 +325,28 @@ function paintTable(d) {
 function paintTools(d) {
   const withTools = d.agents.filter((a) => a.tools)
   if (!withTools.length) {
-    $("toolsHint").textContent = "Agent 每次请求都会把自己的工具清单重发一遍，这部分也按 token 计费。"
-    $("tools").innerHTML = `<div class="waiting">还没有采样。网关 hook 会从下一次请求开始记录每个 Agent 带了哪些工具、有多大（只记名字和大小，不记内容）。用一会儿 Agent 后刷新即可。</div>`
+    $("toolsHint").textContent = T("tools.hint")
+    $("tools").innerHTML = `<div class="waiting">${esc(T("tools.empty"))}</div>`
     return
   }
   const sorted = [...withTools].sort((a, b) => (b.tools[state.toolSort] ?? 0) - (a.tools[state.toolSort] ?? 0))
   const max = sorted[0].tools.avgBytes || 1
-  $("toolsHint").innerHTML = `从 ${when(d.toolsSince)} 开始采样，共 ${int(d.toolSamples)} 次请求。token 数按每 token 约 3.5 字节估算，各 Agent 口径一致。
-    <span class="sortbar inline">${[["avgBytes", "按字节"], ["avgTokens", "按 token"], ["avgCount", "按个数"], ["shareOfPrompt", "占输入比"]]
+  $("toolsHint").innerHTML = `${esc(T("tools.sampling", { since: when(d.toolsSince), samples: int(d.toolSamples) }))}
+    <span class="sortbar inline">${[["avgBytes", T("tools.sortBytes")], ["avgTokens", T("tools.sortTokens")], ["avgCount", T("tools.sortCount")], ["shareOfPrompt", T("tools.sortShare")]]
       .map(([k, n]) => `<button class="pill${state.toolSort === k ? " on" : ""}" data-tsort="${k}" aria-pressed="${state.toolSort === k}">${n}</button>`).join("")}</span>`
   $("tools").innerHTML = `<div class="table-wrap" style="padding:4px 16px">${sorted
     .map((a, i) => `<div class="tool-row">
       <div class="agent who">${mark(a, 18)}<b>${label(a)}</b></div>
       <div class="tool-track"><div class="tool-fill${i === 0 && sorted.length > 1 ? " hot" : ""}" style="width:${((a.tools.avgBytes / max) * 100).toFixed(1)}%"></div></div>
-      <div class="tool-val num">${Math.round(a.tools.avgCount)} 个 · ≈${short(a.tools.avgTokens)} token${a.tools.shareOfPrompt != null ? ` · 占 ${pct(a.tools.shareOfPrompt)}` : ""}</div>
+      <div class="tool-val num">${esc(a.tools.shareOfPrompt != null ? T("tools.perAgentShare", { count: Math.round(a.tools.avgCount), tokens: short(a.tools.avgTokens), share: pct(a.tools.shareOfPrompt) }) : T("tools.perAgent", { count: Math.round(a.tools.avgCount), tokens: short(a.tools.avgTokens) }))}</div>
     </div>`)
     .join("")}</div>`
 }
 
 // ---------- detail drawer ----------
 function distribution(items, total) {
-  if (!items?.length) return '<p class="hint">当前范围没有可展示的记录。</p>'
-  return items.map(m => `<div class="dist-row"><div><span>${esc(m.label || m.name)}</span><span class="num">${int(m.count)} 次 · ${pct(total ? m.count / total : 0)}</span></div><div class="dist-track"><span style="width:${Math.min(100, total ? m.count / total * 100 : 0)}%"></span></div></div>`).join("")
+  if (!items?.length) return `<p class="hint">${esc(T("detail.noRecords"))}</p>`
+  return items.map(m => `<div class="dist-row"><div><span>${esc(m.label || m.name)}</span><span class="num">${esc(T("detail.countPct", { count: int(m.count), pct: pct(total ? m.count / total : 0) }))}</span></div><div class="dist-track"><span style="width:${Math.min(100, total ? m.count / total * 100 : 0)}%"></span></div></div>`).join("")
 }
 
 function openDetail(agent, focus = true) {
@@ -346,27 +356,27 @@ function openDetail(agent, focus = true) {
   const previousQuery = !focus ? $("detail").querySelector('.tool-search input')?.value || '' : ''
   state.openAgent = agent
   const modelCount = a.models.reduce((n,m) => n + m.count, 0)
-  const protoNames = {anthropic:'Anthropic Messages', responses:'OpenAI Responses', chat:'OpenAI Chat Completions', gemini:'Google Gemini', other:'其他 / 未识别'}
+  const protoNames = {anthropic:'Anthropic Messages', responses:'OpenAI Responses', chat:'OpenAI Chat Completions', gemini:'Google Gemini', other:T('detail.otherProtocol')}
   const protocolCount = a.protocols.reduce((n,p) => n + p.count, 0)
   const toolNames = a.tools?.names || []
   const cache = Math.max(0, Math.min(100, a.cacheRate * 100))
   const failure = a.calls ? a.failed / a.calls : 0
   $("detail").innerHTML = `<div class="detail detail-guide">
-    <header class="detail-heading"><h3 class="who">${mark(a,32)}${label(a)}</h3><p class="hint">${when(a.first)} — ${when(a.last)} · 当前筛选范围</p></header>
-    <div class="detail-summary"><strong>这段时间，它向模型发起了 ${int(a.calls)} 次请求。</strong><p>每次平均读入 ${short(a.avgPrompt)} token；输入中 ${pct(a.cacheRate)} 来自缓存。记录到 ${int(a.failed)} 次失败和 ${int(a.cancelled)} 次主动取消。</p><small>这里比较的是实际使用记录；任务、模型和使用频率不同，不能直接当作 Agent 能力排名。</small></div>
-    <section class="sec"><h4>① 输入都用在哪里？ ${tip('prompt')}</h4>
-      <div class="detail-metrics"><div><span>累计输入</span><b>${short(a.prompt)}</b></div><div><span>每次平均</span><b>${short(a.avgPrompt)}</b></div><div><span>生成的输出</span><b>${short(a.out)}</b></div></div>
-      ${a.prompt ? `<div class="composition" aria-label="缓存读取占输入 ${pct(a.cacheRate)}"><span style="width:${cache}%"></span><span style="width:${100-cache}%"></span></div>
-      <div class="composition-key"><span>● 缓存读取 ${short(a.cacheRead)} · ${pct(a.cacheRate)}</span><span>● 非缓存读取 ${short(a.fullPrice)}</span></div>` : '<p class="empty-note">当前范围没有输入 token 记录，无法计算构成。</p>'}
-      <p class="hint">缓存读取通常享有折扣。非缓存读取含新鲜输入与缓存写入，各供应商定价不同；token 数不是金额。</p>
-      <details><summary>查看输入明细</summary><dl class="detail-facts"><dt>新鲜输入</dt><dd>${short(a.in)}</dd><dt>缓存写入</dt><dd>${short(a.cacheWrite)}</dd>${a.credits > 0 ? `<dt>网关记录的额度</dt><dd>${a.credits.toFixed(2)} credits</dd>` : ''}</dl></details>
+    <header class="detail-heading"><h3 class="who">${mark(a,32)}${label(a)}</h3><p class="hint">${when(a.first)} — ${when(a.last)} · ${esc(T('detail.selectedPeriod'))}</p></header>
+    <div class="detail-summary"><strong>${esc(T('detail.summaryRequests', { calls: int(a.calls) }))}</strong><p>${esc(T('detail.summaryBody', { avg: short(a.avgPrompt), cache: pct(a.cacheRate), failed: int(a.failed), cancelled: int(a.cancelled) }))}</p><small>${esc(T('detail.summaryNote'))}</small></div>
+    <section class="sec"><h4>${esc(T('detail.inputTitle'))} ${tip('prompt')}</h4>
+      <div class="detail-metrics"><div><span>${esc(T('detail.totalInput'))}</span><b>${short(a.prompt)}</b></div><div><span>${esc(T('detail.avgInput'))}</span><b>${short(a.avgPrompt)}</b></div><div><span>${esc(T('detail.generatedOutput'))}</span><b>${short(a.out)}</b></div></div>
+      ${a.prompt ? `<div class="composition" aria-label="${esc(T('explain.cacheRate.title'))} ${pct(a.cacheRate)}"><span style="width:${cache}%"></span><span style="width:${100-cache}%"></span></div>
+      <div class="composition-key"><span>● ${esc(T('detail.cacheReads'))} ${short(a.cacheRead)} · ${pct(a.cacheRate)}</span><span>● ${esc(T('detail.nonCacheReads'))} ${short(a.fullPrice)}</span></div>` : `<p class="empty-note">${esc(T('detail.noInput'))}</p>`}
+      <p class="hint">${esc(T('detail.cacheNote'))}</p>
+      <details><summary>${esc(T('detail.inputBreakdown'))}</summary><dl class="detail-facts"><dt>${esc(T('detail.freshInput'))}</dt><dd>${short(a.in)}</dd><dt>${esc(T('detail.cacheWrite'))}</dt><dd>${short(a.cacheWrite)}</dd>${a.credits > 0 ? `<dt>${esc(T('detail.credits'))}</dt><dd>${a.credits.toFixed(2)} credits</dd>` : ''}</dl></details>
     </section>
-    <section class="sec"><h4>② 等待多久，出错多少？</h4><div class="detail-metrics"><div><span>首字等待 ${tip('p50ttft')}</span><b>${secs(a.p50ttft)}</b></div><div><span>完整响应 ${tip('p50ms')}</span><b>${secs(a.p50ms)}</b></div><div><span>失败率 ${tip('errorRate')}</span><b>${pct(failure)}</b></div></div><p class="hint">时间采用中位数（p50）：有一半的有效记录更快。首字与完整响应各自统计，样本可能不同，不能相减当作生成耗时。失败不等于一定产生费用。</p></section>
-    <section class="sec"><h4>③ 工具说明有多重？ ${tip('toolTokens')}</h4>${a.tools ? `<div class="detail-metrics"><div><span>每次携带工具</span><b>${Math.round(a.tools.avgCount)} 个</b></div><div><span>说明体积（估算 token）</span><b>≈${short(a.tools.avgTokens)}</b></div><div><span>有效采样</span><b>${int(a.tools.samples)} 次</b></div></div><p>工具定义是发给模型的“工具使用说明书”，包含名称、参数格式和描述。长说明书也会占上下文，工具数量少不一定更轻。</p><p class="hint">以 JSON 字节数 ÷ 3.5 估算，非模型 tokenizer 的实测值。工具采样 ${int(a.tools.samples)} 条，用量记录 ${int(a.calls)} 条；两者未逐请求关联，不能据此计算覆盖率。工具说明可能命中缓存，不代表每轮都按原价收费。</p><details class="tool-inventory"><summary>查看高频工具名称（最多 40 项）</summary><label class="tool-search">筛选工具名<input type="search" placeholder="输入名称关键词" aria-label="筛选工具名"></label><div class="chips tool-list">${toolNames.map(t=>`<span class="chip mono" data-tool-name="${esc(t.name.toLowerCase())}">${esc(t.name)}</span>`).join('')}</div><p class="hint">这里最多显示采样中出现频率最高的 40 个名称；每次采样也最多记录 60 个名称。这不是完整列表、当前启用列表或工具调用次数。</p></details>` : '<p class="empty-note">尚未采集到工具定义。让该 Agent 通过网关发送新请求后，这里会逐步出现数据。</p>'}</section>
-    <section class="sec"><h4>④ 用过哪些模型？</h4><p class="hint">按请求次数排列，百分比以该 Agent 全部请求为分母。只显示前 ${a.models.length} 项。</p>${distribution(a.models,a.calls)}${modelCount < a.calls ? `<p class="hint">其余 / 未列出的记录：${int(a.calls-modelCount)} 次。</p>` : ''}</section>
-    <section class="sec"><h4>⑤ 请求经过哪些协议？ ${tip('protocol')}</h4><p class="hint">协议是请求与模型服务之间使用的消息格式。下面显示所选时间范围内的主要协议，按日志中记录的端点推断，可能包含网关转换后的协议；不是当前配置清单。</p>${distribution(a.protocols.map(p=>({...p,label:protoNames[p.name] || p.name})),a.calls)}${protocolCount < a.calls ? `<p class="hint">其余 / 未列出的记录：${int(a.calls-protocolCount)} 次。</p>` : ''}</section>
-    <section class="sec"><h4>⑥ 一次会话持续多久？ ${tip('sessionMedian')}</h4>${a.session?.measured ? `<div class="detail-metrics"><div><span>中位时长</span><b>${dur(a.session.median)}</b></div><div><span>90% 会话短于</span><b>${dur(a.session.p90)}</b></div><div><span>可测会话</span><b>${int(a.session.measured)}</b></div></div><p class="hint">按同一会话首末请求的跨度计算，包含思考与闲置，不是连续工作时间。当前统计窗口可能截断会话；${int(a.session.open || 0)} 个超过 6 小时的会话未参与时长统计。</p>` : '<div class="empty-note"><strong>暂时无法计算会话时长</strong><p>当前范围没有可用于时长统计的会话记录。请求次数和响应耗时仍可正常查看；这不代表 Agent 没有工作。</p></div>'}</section>
-    <section class="sec"><h4>每天的输入用量</h4>${spark(a.series,'prompt','big') || '<p class="hint">数据不足，暂不绘制趋势。</p>'}<p class="hint">趋势反映使用规模，不是任务完成质量。</p></section>
+    <section class="sec"><h4>${esc(T('detail.latencyTitle'))}</h4><div class="detail-metrics"><div><span>${esc(T('detail.ttft'))} ${tip('p50ttft')}</span><b>${secs(a.p50ttft)}</b></div><div><span>${esc(T('detail.fullResponse'))} ${tip('p50ms')}</span><b>${secs(a.p50ms)}</b></div><div><span>${esc(T('detail.failureRate'))} ${tip('errorRate')}</span><b>${pct(failure)}</b></div></div><p class="hint">${esc(T('detail.latencyNote'))}</p></section>
+    <section class="sec"><h4>${esc(T('detail.toolsTitle'))} ${tip('toolTokens')}</h4>${a.tools ? `<div class="detail-metrics"><div><span>${esc(T('detail.toolsPerRequest'))}</span><b>${esc(T('detail.toolsPerRequestValue', { count: Math.round(a.tools.avgCount) }))}</b></div><div><span>${esc(T('detail.toolSize'))}</span><b>≈${short(a.tools.avgTokens)}</b></div><div><span>${esc(T('detail.validSamples'))}</span><b>${esc(T('detail.validSamplesValue', { count: int(a.tools.samples) }))}</b></div></div><p>${esc(T('detail.toolsNote'))}</p><p class="hint">${esc(T('detail.toolsCaveat', { samples: int(a.tools.samples), calls: int(a.calls) }))}</p><details class="tool-inventory"><summary>${esc(T('detail.toolInventory'))}</summary><label class="tool-search">${esc(T('detail.toolFilter'))}<input type="search" placeholder="${esc(T('detail.toolSearchPlaceholder'))}" aria-label="${esc(T('detail.toolFilter'))}"></label><div class="chips tool-list">${toolNames.map(t=>`<span class="chip mono" data-tool-name="${esc(t.name.toLowerCase())}">${esc(t.name)}</span>`).join('')}</div><p class="hint">${esc(T('detail.toolInventoryNote'))}</p></details>` : `<p class="empty-note">${esc(T('detail.toolsEmpty'))}</p>`}</section>
+    <section class="sec"><h4>${esc(T('detail.modelsTitle'))}</h4><p class="hint">${esc(T('detail.modelsNote', { count: a.models.length }))}</p>${distribution(a.models,a.calls)}${modelCount < a.calls ? `<p class="hint">${esc(T('detail.remaining', { count: int(a.calls-modelCount) }))}</p>` : ''}</section>
+    <section class="sec"><h4>${esc(T('detail.protocolsTitle'))} ${tip('protocol')}</h4><p class="hint">${esc(T('detail.protocolsNote'))}</p>${distribution(a.protocols.map(p=>({...p,label:protoNames[p.name] || p.name})),a.calls)}${protocolCount < a.calls ? `<p class="hint">${esc(T('detail.remaining', { count: int(a.calls-protocolCount) }))}</p>` : ''}</section>
+    <section class="sec"><h4>${esc(T('detail.sessionTitle'))} ${tip('sessionMedian')}</h4>${a.session?.measured ? `<div class="detail-metrics"><div><span>${esc(T('detail.medianSpan'))}</span><b>${dur(a.session.median)}</b></div><div><span>${esc(T('detail.p90Span'))}</span><b>${dur(a.session.p90)}</b></div><div><span>${esc(T('detail.measuredSessions'))}</span><b>${int(a.session.measured)}</b></div></div><p class="hint">${esc(T('detail.sessionNote', { open: int(a.session.open || 0) }))}</p>` : `<div class="empty-note"><strong>${esc(T('detail.sessionUnavailable'))}</strong><p>${esc(T('detail.sessionEmpty'))}</p></div>`}</section>
+    <section class="sec"><h4>${esc(T('detail.trendTitle'))}</h4>${spark(a.series,'prompt','big') || `<p class="hint">${esc(T('detail.trendEmpty'))}</p>`}<p class="hint">${esc(T('detail.trendNote'))}</p></section>
   </div>`
   wireTips($("detail"))
   $("detail").querySelector('.tool-search input')?.addEventListener('input', e => {
@@ -403,6 +413,7 @@ async function load() {
   try {
     const p = new URLSearchParams({ period: state.period, tz: String(new Date().getTimezoneOffset()) })
     if (state.clients) p.set("clients", "1")
+    p.set("lang", LANG)
     p.set("k", TOKEN)
     const res = await fetch(`/api/summary?${p}`, { cache: "no-store" })
     if (res.status === 403 && !sessionStorageSafe("al.reloaded")) { markReloaded(); return location.reload() }
@@ -410,7 +421,7 @@ async function load() {
     state.data = await res.json()
     paint()
   } catch (e) {
-    showState(`读不到数据：${e.message}。确认 magpie 网关在运行，再刷新。`, true)
+    showState(T("state.loadError", { message: e.message }), true)
   }
 }
 

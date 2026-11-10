@@ -50,7 +50,7 @@ magpie plugin add github:webkubor/harnessweight
 
 ```
 magpie usage.jsonl ─────────────┐
-                                ├─► 本地服务 127.0.0.1:3492 ─► 页面
+                                ├─► 本地服务 127.0.0.1:3496 ─► 页面
 网关 hook（只读）─► tools.jsonl ─┘
 ```
 
@@ -76,7 +76,7 @@ magpie usage.jsonl ─────────────┐
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| `port` | `3492` | 本地服务端口 |
+| `port` | `3496` | 本地服务端口 |
 | `usageLog` | `~/.config/magpie/usage.jsonl` | magpie 用量记录的位置 |
 | `dataDir` | `~/.config/magpie/harnessweight` | 工具采样存放目录 |
 | `agents` | `[]` | 只采样这些 Agent；空表示全部 |
@@ -94,7 +94,7 @@ magpie usage.jsonl ─────────────┐
 
 ```sh
 npm test      # 四种协议的工具解析、用量解析、汇总、增量读取、hook 不落内容
-npm run dev   # 直接起服务：http://127.0.0.1:3492/
+npm run dev   # 直接起服务：http://127.0.0.1:3496/
 ```
 
 ## 品牌

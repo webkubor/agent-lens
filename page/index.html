@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,6 +15,17 @@
 </style>
 </head>
 <body>
-<div class="wait"><img src="icon.svg" alt=""><p id="msg">正在打开 HarnessWeight…</p></div>
+<div class="wait"><img src="icon.svg" alt=""><p id="msg">Opening HarnessWeight…</p></div>
+<script>
+  // the window's language, from magpie's bridge; only Simplified Chinese has its own line
+  (async () => {
+    try {
+      const l = String((await window.magpie?.ready)?.lang || navigator.language || "").toLowerCase()
+      const zh = /^zh(?:-|$)/.test(l) && !/^zh-(tw|hk|mo|hant)\b/.test(l)
+      document.documentElement.lang = zh ? "zh-CN" : "en"
+      if (zh) document.getElementById("msg").textContent = "正在打开 HarnessWeight…"
+    } catch {}
+  })()
+</script>
 </body>
 </html>

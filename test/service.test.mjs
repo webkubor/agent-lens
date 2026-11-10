@@ -55,7 +55,18 @@ test("other hosts, other origins and path traversal are refused", async () => {
       })
     })
     assert.notEqual(t.statusCode, 200)
+    assert.equal((await get(s.port, '/%E0')).status, 400)
   } finally { s.close() }
+})
+
+test("the service, page bridge and defaults agree on the community port", async () => {
+  const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"))
+  const boot = await readFile(new URL("../page/boot.js", import.meta.url), "utf8")
+  const server = await readFile(new URL("../service.mjs", import.meta.url), "utf8")
+  assert.equal(pkg.magpie.page.service.port, 3496)
+  assert.equal(pkg.magpie.options.port, 3496)
+  assert.match(boot, /let port = 3496\b/)
+  assert.match(server, /Number\(options\.port\) > 0 \? Number\(options\.port\) : 3496/)
 })
 
 test("the page in magpie's frame reaches no network and declares no reads", async () => {

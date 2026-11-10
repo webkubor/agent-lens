@@ -14,8 +14,8 @@ function start(options) {
 
 export default {
   id: "harnessweight",
-  server: async (_input, options) => {
-    start(options)
+  server: async (input, options) => {
+    start({ ...options, directory: input?.directory })
     return {}
   },
 }
