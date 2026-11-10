@@ -1,11 +1,11 @@
 {
   "projects": [
     {
-      "id": "agent-lens-v2",
-      "name": "Agent Lens · 重设计 v2（叠镜）",
+      "id": "harnessweight-v2",
+      "name": "HarnessWeight · 重设计 v2（叠镜）",
       "sources": [
         {
-          "url": "https://github.com/webkubor/agent-lens",
+          "url": "https://github.com/webkubor/harnessweight",
           "label": "项目仓库"
         }
       ],
