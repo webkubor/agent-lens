@@ -6,12 +6,15 @@
   --orange: #F26B1D; --orange-2: #FFA23A; --orange-soft: #FFF0E5; --yellow: #FFB547;
   --ink: #2B2F36; --bar: #E6E9ED; --danger: #C2410C;
   --radius: 14px; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 16px rgba(16,24,40,.05);
+  --tip-bg: #1B1E23; --tip-fg: #F2F4F7; --teal-glow: rgba(23,169,162,.30); --chip-bg: #F1F3F5;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
   --bg: #0D1117; --panel: #151B23; --panel-2: #1B222C; --fg: #E6EAF0; --muted: #8B94A3; --line: #252D38;
   --teal: #2CC5BC; --teal-ink: #5EE0D2; --teal-soft: #0F2A2A; --orange-soft: #2E1C10;
   --ink: #3A414D; --bar: #232B36; --danger: #FF8A4C;
+  --tip-bg: #E9EDF2; --tip-fg: #1B1E23; --teal-glow: rgba(44,197,188,.34); --chip-bg: #1B222C;
   --shadow: none; color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -19,6 +22,7 @@
     --bg: #0D1117; --panel: #151B23; --panel-2: #1B222C; --fg: #E6EAF0; --muted: #8B94A3; --line: #252D38;
     --teal: #2CC5BC; --teal-ink: #5EE0D2; --teal-soft: #0F2A2A; --orange-soft: #2E1C10;
     --ink: #3A414D; --bar: #232B36; --danger: #FF8A4C; --shadow: none; color-scheme: dark;
+    --tip-bg: #E9EDF2; --tip-fg: #1B1E23; --teal-glow: rgba(44,197,188,.34); --chip-bg: #1B222C;
   }
 }
 .logo.on-dark { display: none; }
@@ -76,15 +80,19 @@ h2 { margin: 0; font-size: 16px; font-weight: 650; }
 .stack .cached { background: linear-gradient(90deg, var(--teal-2), var(--teal)); }
 .stack .full { background: var(--ink); }
 .card.top1 .stack .full { background: linear-gradient(90deg, var(--orange-2), var(--orange)); }
-.card-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
-.card-meta div { font-size: 12px; color: var(--muted); }
-.card-meta b { display: block; color: var(--fg); font-size: 13.5px; font-weight: 600; }
+.card-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.card-meta div { font-size: 12px; color: var(--muted); min-width: 0; }
+.card-meta b { color: var(--fg); font-size: 13.5px; font-weight: 600; margin-right: 4px; }
 .spark { display: block; width: 100%; height: 34px; margin-top: 10px; }
 .spark path.l { fill: none; stroke: var(--teal); stroke-width: 1.6; }
 .spark path.a { fill: color-mix(in srgb, var(--teal) 14%, transparent); }
 
 .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table th, table td { padding: 9px 9px; }
+table th .tip { margin-left: 2px; }
+table td.n, table th.n { padding-left: 7px; padding-right: 7px; }
+table .proto-cell { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 11px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; cursor: pointer; user-select: none; }
 th:hover { color: var(--fg); }
 th[aria-sort] { color: var(--fg); }
@@ -153,3 +161,92 @@ td.agent { font-weight: 600; }
 :root[data-theme="dark"] .mark img { background: #fff; border-radius: 5px; padding: 1px; }
 
 .tool-row .who { overflow: hidden; } .tool-row .who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- explanations: a small "?" that opens the note ---------- */
+.tipwrap { display: inline-flex; align-items: baseline; gap: 4px; }
+.tip {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1px solid var(--line); color: var(--muted); font-size: 9px; line-height: 1;
+  cursor: help; vertical-align: middle; outline: none;
+}
+.tip::before { content: "?"; }
+.tip:hover, .tip:focus { border-color: var(--teal); color: var(--teal-ink); background: var(--teal-soft); }
+.tip-body {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(4px);
+  width: max-content; max-width: 280px; padding: 9px 11px; border-radius: 8px;
+  white-space: normal; font-weight: 400;
+  background: var(--tip-bg); color: var(--tip-fg); border: 1px solid var(--line);
+  box-shadow: 0 8px 28px rgba(0,0,0,.18); font-size: 12px; line-height: 1.55; font-weight: 400;
+  opacity: 0; pointer-events: none; transition: opacity .14s ease, transform .14s ease; z-index: 40; text-align: left;
+}
+.tip-body::after {
+  content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: var(--tip-bg);
+}
+.tip.open .tip-body, .tip:hover .tip-body, .tip:focus-within .tip-body { opacity: 1; transform: translateX(-50%) translateY(0); }
+.tip-body b { display: block; font-weight: 700; margin-bottom: 3px; }
+/* near the top of the page the note would go off-screen: open downwards */
+.tip.flip .tip-body { bottom: auto; top: calc(100% + 8px); transform: translateX(-50%) translateY(-4px); }
+.tip.flip.open .tip-body, .tip.flip:hover .tip-body, .tip.flip:focus-within .tip-body { transform: translateX(-50%) translateY(0); }
+.tip.flip .tip-body::after { top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: var(--tip-bg); }
+
+/* ---------- sorting pills ---------- */
+.sortbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
+.sortbar.inline { display: inline-flex; margin: 6px 0 0; vertical-align: middle; }
+.pill {
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+  border-radius: 999px; padding: 4px 11px; font-size: 12px; cursor: pointer; line-height: 1.4;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.pill:hover { border-color: var(--teal); color: var(--teal-ink); }
+.pill.on { background: var(--teal-soft); border-color: var(--teal); color: var(--teal-ink); font-weight: 600; }
+.pill:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* ---------- an agent in use right now ---------- */
+.card.live { position: relative; border-color: var(--teal); }
+.card.live::before {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 0 var(--teal-glow); animation: halo 2.4s ease-out infinite;
+}
+@keyframes halo {
+  0%   { box-shadow: 0 0 0 0 var(--teal-glow); }
+  70%  { box-shadow: 0 0 0 9px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.live-badge {
+  display: inline-flex; align-items: center; gap: 5px; color: var(--teal-ink);
+  background: var(--teal-soft); border-radius: 999px; padding: 2px 8px 2px 6px; font-size: 11px; font-weight: 600;
+}
+.live-badge::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--teal);
+  animation: blink 1.3s ease-in-out infinite;
+}
+.live-badge .tip { margin-left: 2px; }
+@keyframes blink { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) {
+  .card.live::before, .live-badge::before { animation: none; }
+  .card.live { border-width: 2px; }
+}
+
+/* ---------- small bits on the card ---------- */
+.card-foot { display: flex; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.card-foot .proto, .card-foot .dur {
+  background: var(--chip-bg); border-radius: 5px; padding: 1px 6px; white-space: nowrap;
+}
+.proto-cell { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* a label followed by a tip marker must not wrap */
+.card-meta > div, .kpi .k, th { white-space: nowrap; }
+.card-meta > div { display: flex; align-items: baseline; flex-wrap: wrap; row-gap: 1px; }
+.card-meta > div > .tipwrap { gap: 3px; }
+.kpi .k { display: flex; align-items: center; gap: 2px; }
+.kpi .k .tipwrap { gap: 3px; }
+.live-badge { flex: none; white-space: nowrap; }
+.live-badge .tipwrap { gap: 2px; }
+.live-badge .tip { width: 13px; height: 13px; font-size: 9px; }
+/* the live badge sits on one line with the name */
+.card-head { flex-wrap: wrap; row-gap: 4px; }
+.card-name { min-width: 0; }
+/* the table header must breathe: many columns now carry a tip marker */
+th .tip { margin-left: 3px; }

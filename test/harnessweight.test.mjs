@@ -87,3 +87,41 @@ test("brands come from the gateway and fall back softly", async () => {
   await down.refresh()
   assert.equal(down.of("codex").name, "codex")
 })
+
+test("session length is measured, and runaway sessions are counted not measured", () => {
+  const now = Date.now()
+  const r = (agent, session, t) => ({ t, agent, model: "m", protocol: "chat", in: 1, out: 1, cacheRead: 0, cacheWrite: 0, ms: 1, ttft: 1, failed: false, cancelled: false, session })
+  const usage = [
+    r("a", "s1", now - 600e3), r("a", "s1", now - 300e3),   // 5 minutes
+    r("a", "s2", now - 20_000e3), r("a", "s2", now - 10_000e3), // 10 seconds
+    r("a", "s3", now - 30 * 3600e3), r("a", "s3", now - 10e3), // open for a day: not measured
+  ]
+  const s = summarize({ usage, period: "7d", now, showClients: true })
+  const a = s.agents.find((x) => x.agent === "a")
+  assert.equal(a.session.count, 3)
+  assert.equal(a.session.measured, 2)
+  assert.equal(a.session.open, 1)
+  assert.equal(a.session.median, 10_000_000)
+  assert.ok(a.session.longest <= 6 * 3600e3)
+})
+
+test("agents without a session id report no session length", () => {
+  const now = Date.now()
+  const usage = [{ t: now, agent: "a", model: "m", protocol: "chat", in: 1, out: 1, cacheRead: 0, cacheWrite: 0, ms: 1, ttft: 1, failed: false, cancelled: false }]
+  const s = summarize({ usage, period: "7d", now, showClients: true })
+  const a = s.agents.find((x) => x.agent === "a")
+  assert.equal(a.session.count, 0)
+  assert.equal(a.session.median, null)
+})
+
+test("the protocol each agent speaks is reported", () => {
+  const now = Date.now()
+  const usage = [
+    { t: new Date(now).toISOString(), agent: "a", model: "m", ep: "/v1/messages", status: 200, in: 1, out: 1, cache_read: 0, cache_write: 0, ms: 1, ttft_ms: 1 },
+    { t: new Date(now).toISOString(), agent: "a", model: "m", ep: "/v1/messages", status: 200, in: 1, out: 1, cache_read: 0, cache_write: 0, ms: 1, ttft_ms: 1 },
+    { t: new Date(now).toISOString(), agent: "a", model: "m", ep: "/v1/responses", status: 200, in: 1, out: 1, cache_read: 0, cache_write: 0, ms: 1, ttft_ms: 1 },
+  ].map((d) => parseUsageLine(JSON.stringify(d)))
+  const s = summarize({ usage, period: "7d", now, showClients: true })
+  const a = s.agents.find((x) => x.agent === "a")
+  assert.deepEqual(a.protocols.map((p) => p.name), ["anthropic", "responses"])
+})

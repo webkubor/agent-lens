@@ -1,6 +1,8 @@
 // HarnessWeight — the interface. Served by the plugin's own service, so the
 // data is a same-origin fetch away.
 
+import { EXPLAIN, COLS, CARD_SORTS } from "./explain.js"
+
 const $ = (id) => document.getElementById(id)
 const qs = new URLSearchParams(location.search)
 // sandboxed in magpie's frame the origin is opaque and storage throws
@@ -13,6 +15,8 @@ const state = {
   period: store.get("al.period") || "7d",
   clients: store.get("al.clients") === "1",
   sort: { key: "prompt", dir: -1 },
+  cardSort: "prompt",
+  toolSort: "avgBytes",
   data: null,
   openAgent: null,
 }
@@ -39,6 +43,15 @@ function secs(ms) {
   if (!ms) return "—"
   return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`
 }
+function dur(ms) {
+  if (ms == null || !Number.isFinite(ms)) return "—"
+  const m = ms / 60000
+  if (m < 1) return `${Math.round(ms / 1000)}秒`
+  if (m < 60) return `${m.toFixed(0)}分`
+  const h = m / 60
+  if (h < 24) return `${h.toFixed(1)}小时`
+  return `${(h / 24).toFixed(1)}天`
+}
 function when(t) {
   if (!t) return "—"
   return new Date(t).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
@@ -54,6 +67,52 @@ function mark(a, size = 20) {
   return `<span class="mark" style="width:${size}px;height:${size}px"><img src="${a.icon.startsWith("data:") ? a.icon : "icons/" + encodeURIComponent(a.icon)}" alt="" width="${size}" height="${size}"></span>`
 }
 const label = (a) => esc(a.name || a.agent)
+
+// ---------- explanations ----------
+// A small "?" that shows what a number means on hover or keyboard focus. The
+// text lives in explain.js; this only renders the marker.
+// A label with a small "?" next to it that opens the explanation on hover or
+// keyboard focus. The label itself stays plain text; only the marker is a
+// button, so a label never gets squeezed by the marker.
+function tip(key, label) {
+  const e = EXPLAIN[key]
+  if (!e) return label ?? ""
+  return `<span class="tipwrap">${label ?? ""}<span class="tip" tabindex="0" role="button" aria-expanded="false" aria-label="${esc(e.title)}：${esc(e.body)}"><span class="tip-body" role="tooltip"><b>${esc(e.title)}</b>${esc(e.body)}</span></span></span>`
+}
+
+// Open the note on hover and on focus. The state lives in a class rather than
+// in :hover/:focus alone, so it also opens when the note is toggled by
+// keyboard or touch, and so it can be tested without a real pointer.
+function wireTips(root) {
+  for (const t of root.querySelectorAll(".tip")) {
+    if (t.dataset.wired) continue
+    t.dataset.wired = "1"
+    const open = () => {
+      // a note near the top of the viewport would open off-screen: flip it down
+      const r = t.getBoundingClientRect()
+      t.classList.toggle("flip", r.top < 120)
+      t.classList.add("open")
+      t.setAttribute("aria-expanded", "true")
+    }
+    const close = () => { t.classList.remove("open"); t.setAttribute("aria-expanded", "false") }
+    t.addEventListener("mouseenter", open)
+    t.addEventListener("mouseleave", close)
+    t.addEventListener("focus", open)
+    t.addEventListener("blur", close)
+    t.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { close(); t.blur() }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); t.classList.contains("open") ? close() : open() }
+    })
+  }
+}
+
+// A harness is "live" when it sent a request in the last two minutes: the
+// status line says so, and the card gets a breathing light.
+const LIVE_MS = 120_000
+function isLive(a, d) {
+  const last = a.last
+  return Boolean(last && d.generatedAt - last < LIVE_MS)
+}
 
 // ---------- sparkline ----------
 function spark(series, key, cls = "") {
@@ -80,9 +139,11 @@ function paint() {
   paintStatus(d)
   paintInsights(d)
   paintKpis(d)
+  paintCardSort()
   paintCards(d)
   paintTable(d)
   paintTools(d)
+  wireTips(document)
   const s = d.sources || {}
   $("sources").textContent = `用量记录 ${int(s.usageRows)} 条 · 工具采样 ${int(s.toolRows)} 条 · 更新于 ${new Date(d.generatedAt).toLocaleTimeString("zh-CN")}`
   if (state.openAgent) openDetail(state.openAgent, false)
@@ -114,54 +175,60 @@ function paintInsights(d) {
 function paintKpis(d) {
   const t = d.totals
   const items = [
-    ["输入 token", short(t.prompt), `${int(t.calls)} 次请求`],
-    ["缓存命中", pct(t.cacheRate), `按原价算的 ${short(t.fullPrice)}`],
-    ["输出 token", short(t.out), `平均 ${short(t.calls ? t.out / t.calls : 0)}/次`],
-    ["失败", int(t.failed), pct(t.calls ? t.failed / t.calls : 0)],
-    ["Agent", int(d.agents.length), d.hiddenClients ? `另有 ${int(d.hiddenClients)} 次脚本/内部请求未计` : "网关后面的客户端"],
+    ["输入 token", short(t.prompt), `${int(t.calls)} 次请求`, "prompt"],
+    ["缓存命中", pct(t.cacheRate), `按原价算的 ${short(t.fullPrice)}`, "cacheRate"],
+    ["输出 token", short(t.out), `平均 ${short(t.calls ? t.out / t.calls : 0)}/次`, "out"],
+    ["失败", int(t.failed), pct(t.calls ? t.failed / t.calls : 0), "errorRate"],
+    ["Agent", int(d.agents.length), d.hiddenClients ? `另有 ${int(d.hiddenClients)} 次脚本/内部请求未计` : "网关后面的客户端", null],
   ]
   if (t.credits > 0) items.splice(4, 0, ["credits", t.credits.toFixed(2), "magpie 记账的按量额度"])
   $("kpis").innerHTML = items
-    .map(([k, v, s]) => `<div class="kpi"><div class="k">${k}</div><div class="v num">${v}</div><div class="s">${esc(s)}</div></div>`)
+    .map(([k, v, s, tipKey]) => `<div class="kpi"><div class="k">${tipKey ? tip(tipKey, k) : k}</div><div class="v num">${v}</div><div class="s">${esc(s)}</div></div>`)
     .join("")
 }
 
 function paintCards(d) {
   const max = Math.max(...d.agents.map((a) => a.prompt), 1)
-  $("cards").innerHTML = d.agents
+  const sorted = [...d.agents].sort((x, y) => cardVal(y, state.cardSort) - cardVal(x, state.cardSort))
+  $("cards").innerHTML = sorted
     .map((a, i) => {
       const w = (a.prompt / max) * 100
       const fullW = a.prompt ? (a.fullPrice / a.prompt) * w : 0
       const top1 = i === 0 && d.agents.length > 1
-      return `<div class="card${top1 ? " top1" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${label(a)} 详情">
-        <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${top1 ? '<span class="tag">花得最多</span>' : ""}</div>
+      const live = isLive(a, d)
+      const proto = a.protocols?.[0]?.name
+      return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${label(a)} 详情">
+        <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${live ? `<span class="live-badge">${tip("live", "正在使用")}</span>` : ""}${top1 ? '<span class="tag">花得最多</span>' : ""}</div>
         <div class="card-big num">${short(a.prompt)}<small>输入 token</small></div>
         <div class="stack" title="浅色：缓存读取；深色：按原价"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>
         <div class="card-meta">
-          <div><b class="num">${pct(a.cacheRate)}</b>缓存命中</div>
-          <div><b class="num">${short(a.avgPrompt)}</b>每次读</div>
-          <div><b class="num ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(a.errorRate)}</b>失败率</div>
+          <div><b class="num">${pct(a.cacheRate)}</b>${tip("cacheRate", "缓存命中")}</div>
+          <div><b class="num">${short(a.avgPrompt)}</b>${tip("avgPrompt", "每次读")}</div>
+          <div><b class="num ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(a.errorRate)}</b>${tip("errorRate", "失败率")}</div>
         </div>
+        ${proto ? `<div class="card-foot"><span class="proto" title="${esc(proto)}">${esc(proto)}</span>${a.session?.median ? `<span class="dur" title="单次会话时长中位数">${dur(a.session.median)}</span>` : ""}</div>` : ""}
         ${spark(a.series, "prompt")}
       </div>`
     })
     .join("")
 }
 
-const COLS = [
-  ["agent", "Agent", false],
-  ["calls", "请求", true],
-  ["prompt", "输入 token", true],
-  ["avgPrompt", "每次读", true],
-  ["cacheRate", "缓存命中", true],
-  ["fullPrice", "按原价", true],
-  ["out", "输出", true],
-  ["errorRate", "失败率", true],
-  ["p50ttft", "首字 p50", true],
-  ["p50ms", "耗时 p50", true],
-  ["toolTokens", "工具 token/次", true],
-]
-const val = (a, k) => (k === "toolTokens" ? a.tools?.avgTokens ?? -1 : k === "agent" ? a.name || a.agent : a[k])
+const val = (a, k) => {
+  if (k === "toolTokens") return a.tools?.avgTokens ?? -1
+  if (k === "agent") return a.name || a.agent
+  if (k === "protocol") return a.protocols?.[0]?.name || ""
+  if (k === "session") return a.session?.median ?? -1
+  return a[k]
+}
+
+const cardVal = (a, k) => (k === "toolTokens" ? a.tools?.avgTokens ?? -1 : a[k] ?? -1)
+
+function paintCardSort() {
+  const box = $("cardSort")
+  if (!box) return
+  box.innerHTML = CARD_SORTS.map(([k, name]) =>
+    `<button class="pill${state.cardSort === k ? " on" : ""}" data-sort="${k}" aria-pressed="${state.cardSort === k}">${name}</button>`).join("")
+}
 
 function paintTable(d) {
   const { key, dir } = state.sort
@@ -170,7 +237,7 @@ function paintTable(d) {
     return typeof a === "string" ? a.localeCompare(b) * dir : ((a ?? 0) - (b ?? 0)) * dir
   })
   const topAgent = d.agents[0]?.agent
-  const head = COLS.map(([k, label, n]) => `<th class="${n ? "n" : ""}" data-key="${k}" ${k === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""} tabindex="0">${label}</th>`).join("")
+  const head = COLS.map(([k, name, n, tipKey]) => `<th class="${n ? "n" : ""}" data-key="${k}" ${k === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""} tabindex="0">${tipKey ? tip(tipKey, name) : name}</th>`).join("")
   const body = rows
     .map((a) => `<tr tabindex="0" data-agent="${esc(a.agent)}">
       <td class="agent"><span class="who">${mark(a, 18)}${label(a)}${a.agent === topAgent && d.agents.length > 1 ? '<span class="dot hot" title="花得最多"></span>' : ""}</span></td>
@@ -184,6 +251,8 @@ function paintTable(d) {
       <td class="n">${secs(a.p50ttft)}</td>
       <td class="n">${secs(a.p50ms)}</td>
       <td class="n">${a.tools ? short(a.tools.avgTokens) : "—"}</td>
+      <td class="n proto-cell" title="${a.protocols?.map((p) => p.name).join("、") || ""}">${a.protocols?.length ? esc(a.protocols[0].name) : "—"}</td>
+      <td class="n">${a.session?.median ? dur(a.session.median) : "—"}</td>
     </tr>`)
     .join("")
   $("table").innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`
@@ -196,9 +265,11 @@ function paintTools(d) {
     $("tools").innerHTML = `<div class="waiting">还没有采样。网关 hook 会从下一次请求开始记录每个 Agent 带了哪些工具、有多大（只记名字和大小，不记内容）。用一会儿 Agent 后刷新即可。</div>`
     return
   }
-  const sorted = [...withTools].sort((a, b) => b.tools.avgBytes - a.tools.avgBytes)
+  const sorted = [...withTools].sort((a, b) => (b.tools[state.toolSort] ?? 0) - (a.tools[state.toolSort] ?? 0))
   const max = sorted[0].tools.avgBytes || 1
-  $("toolsHint").textContent = `从 ${when(d.toolsSince)} 开始采样，共 ${int(d.toolSamples)} 次请求。token 数按每 token 约 3.5 字节估算，各 Agent 口径一致。`
+  $("toolsHint").innerHTML = `从 ${when(d.toolsSince)} 开始采样，共 ${int(d.toolSamples)} 次请求。token 数按每 token 约 3.5 字节估算，各 Agent 口径一致。
+    <span class="sortbar inline">${[["avgBytes", "按字节"], ["avgTokens", "按 token"], ["avgCount", "按个数"], ["shareOfPrompt", "占输入比"]]
+      .map(([k, n]) => `<button class="pill${state.toolSort === k ? " on" : ""}" data-tsort="${k}" aria-pressed="${state.toolSort === k}">${n}</button>`).join("")}</span>`
   $("tools").innerHTML = `<div class="table-wrap" style="padding:4px 16px">${sorted
     .map((a, i) => `<div class="tool-row">
       <div class="agent who">${mark(a, 18)}<b>${label(a)}</b></div>
@@ -223,21 +294,29 @@ function openDetail(agent, focus = true) {
     <div class="sec"><h4>每天读进模型的 token</h4>${spark(a.series, "prompt", "big") || '<p class="hint">不到两天的数据，画不出趋势。</p>'}</div>
     <div class="sec"><h4>用量</h4><div class="dl">
       <div><b class="num">${int(a.calls)}</b>请求</div>
-      <div><b class="num">${short(a.prompt)}</b>输入 token</div>
+      <div><b class="num">${short(a.prompt)}</b>${tip("prompt", "输入 token")}</div>
       <div><b class="num">${short(a.cacheRead)}</b>缓存读取</div>
       <div><b class="num">${short(a.cacheWrite)}</b>缓存写入</div>
       <div><b class="num">${short(a.in)}</b>未缓存输入</div>
-      <div><b class="num">${short(a.out)}</b>输出 token</div>
-      <div><b class="num">${pct(a.cacheRate)}</b>缓存命中</div>
+      <div><b class="num">${short(a.out)}</b>${tip("out", "输出 token")}</div>
+      <div><b class="num">${pct(a.cacheRate)}</b>${tip("cacheRate", "缓存命中")}</div>
       <div><b class="num">${int(a.failed)} / ${int(a.cancelled)}</b>失败 / 主动取消</div>
-      <div><b class="num">${secs(a.p50ttft)}</b>首字 p50</div>
-      <div><b class="num">${secs(a.p50ms)}</b>耗时 p50</div>
+      <div><b class="num">${secs(a.p50ttft)}</b>${tip("p50ttft", "首字 p50")}</div>
+      <div><b class="num">${secs(a.p50ms)}</b>${tip("p50ms", "耗时 p50")}</div>
       ${a.credits > 0 ? `<div><b class="num">${a.credits.toFixed(2)}</b>credits</div>` : ""}
     </div></div>
     <div class="sec"><h4>用过的模型</h4><div class="chips">${models || "—"}</div></div>
-    <div class="sec"><h4>协议</h4><div class="chips">${protos || "—"}</div></div>
-    <div class="sec"><h4>工具定义</h4>${a.tools
-      ? `<p class="hint">平均每次带 ${Math.round(a.tools.avgCount)} 个，约 ${short(a.tools.avgTokens)} token（${int(a.tools.samples)} 次采样）</p><div class="chips">${tools}</div>`
+    <div class="sec"><h4>${tip("protocol", "接入协议")}</h4><div class="chips">${protos || "—"}</div></div>
+    <div class="sec"><h4>${tip("sessionMedian", "单次会话时长")}</h4>${a.session?.measured
+      ? `<div class="dl">
+        <div><b class="num">${dur(a.session.median)}</b>中位数</div>
+        <div><b class="num">${dur(a.session.p90)}</b>长会话 p90</div>
+        <div><b class="num">${int(a.session.count)}</b>会话数</div>
+        ${a.session.open ? `<div><b class="num">${int(a.session.open)}</b>超 6 小时的会话未计入</div>` : ""}
+      </div><p class="hint">会话 id 由 harness 自己维护，所以这个数只对上报了会话的 harness 有意义。</p>`
+      : '<p class="hint">这个 harness 没有上报会话 id，量不出单次会话时长。</p>'}</div>
+    <div class="sec"><h4>${tip("toolTokens", "工具定义")}</h4>${a.tools
+      ? `<p class="hint">平均每次带 ${Math.round(a.tools.avgCount)} 个（${tip("toolCount", "个数不代表成本")}），约 ${short(a.tools.avgTokens)} token，占它自己输入的 ${pct(a.tools.shareOfPrompt)}（${int(a.tools.samples)} 次采样）</p><div class="chips">${tools}</div>`
       : '<p class="hint">还没有采样。</p>'}</div>
   </div>`
   const dr = $("drawer")
@@ -296,6 +375,19 @@ $("clients").addEventListener("change", (e) => {
 })
 const pick = (e) => e.target.closest("[data-agent]")?.dataset.agent
 $("cards").addEventListener("click", (e) => { const a = pick(e); if (a) openDetail(a) })
+$("cardSort").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-sort]")
+  if (!b || b.dataset.sort === state.cardSort) return
+  state.cardSort = b.dataset.sort
+  paintCardSort()
+  paintCards(state.data)
+})
+$("tools").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-tsort]")
+  if (!b) return
+  state.toolSort = b.dataset.tsort
+  paintTools(state.data)
+})
 $("table").addEventListener("click", (e) => {
   const th = e.target.closest("th[data-key]")
   if (th) {
