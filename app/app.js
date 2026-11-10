@@ -249,7 +249,7 @@ function paintCards(d) {
       const w = (a.prompt / max) * 100
       const fullW = a.prompt ? (a.fullPrice / a.prompt) * w : 0
       const top1 = a.prompt === max && d.agents.length > 1
-      const live = isLive(a, d)
+      const live = isLive(a)
       const proto = a.protocols?.[0]?.name
       return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${label(a)} 详情">
         <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${live ? activityBadge(a.agent) : ""}${top1 ? '<span class="tag">花得最多</span>' : ""}</div>
@@ -347,6 +347,7 @@ function openDetail(agent, focus = true) {
   state.openAgent = agent
   const modelCount = a.models.reduce((n,m) => n + m.count, 0)
   const protoNames = {anthropic:'Anthropic Messages', responses:'OpenAI Responses', chat:'OpenAI Chat Completions', gemini:'Google Gemini', other:'其他 / 未识别'}
+  const protocolCount = a.protocols.reduce((n,p) => n + p.count, 0)
   const toolNames = a.tools?.names || []
   const cache = Math.max(0, Math.min(100, a.cacheRate * 100))
   const failure = a.calls ? a.failed / a.calls : 0
@@ -363,7 +364,7 @@ function openDetail(agent, focus = true) {
     <section class="sec"><h4>② 等待多久，出错多少？</h4><div class="detail-metrics"><div><span>首字等待 ${tip('p50ttft')}</span><b>${secs(a.p50ttft)}</b></div><div><span>完整响应 ${tip('p50ms')}</span><b>${secs(a.p50ms)}</b></div><div><span>失败率 ${tip('errorRate')}</span><b>${pct(failure)}</b></div></div><p class="hint">时间采用中位数（p50）：有一半的有效记录更快。首字与完整响应各自统计，样本可能不同，不能相减当作生成耗时。失败不等于一定产生费用。</p></section>
     <section class="sec"><h4>③ 工具说明有多重？ ${tip('toolTokens')}</h4>${a.tools ? `<div class="detail-metrics"><div><span>每次携带工具</span><b>${Math.round(a.tools.avgCount)} 个</b></div><div><span>说明体积（估算 token）</span><b>≈${short(a.tools.avgTokens)}</b></div><div><span>有效采样</span><b>${int(a.tools.samples)} 次</b></div></div><p>工具定义是发给模型的“工具使用说明书”，包含名称、参数格式和描述。长说明书也会占上下文，工具数量少不一定更轻。</p><p class="hint">以 JSON 字节数 ÷ 3.5 估算，非模型 tokenizer 的实测值。工具采样 ${int(a.tools.samples)} 条，用量记录 ${int(a.calls)} 条；两者未逐请求关联，不能据此计算覆盖率。工具说明可能命中缓存，不代表每轮都按原价收费。</p><details class="tool-inventory"><summary>查看高频工具名称（最多 40 项）</summary><label class="tool-search">筛选工具名<input type="search" placeholder="输入名称关键词" aria-label="筛选工具名"></label><div class="chips tool-list">${toolNames.map(t=>`<span class="chip mono" data-tool-name="${esc(t.name.toLowerCase())}">${esc(t.name)}</span>`).join('')}</div><p class="hint">这里最多显示采样中出现频率最高的 40 个名称；每次采样也最多记录 60 个名称。这不是完整列表、当前启用列表或工具调用次数。</p></details>` : '<p class="empty-note">尚未采集到工具定义。让该 Agent 通过网关发送新请求后，这里会逐步出现数据。</p>'}</section>
     <section class="sec"><h4>④ 用过哪些模型？</h4><p class="hint">按请求次数排列，百分比以该 Agent 全部请求为分母。只显示前 ${a.models.length} 项。</p>${distribution(a.models,a.calls)}${modelCount < a.calls ? `<p class="hint">其余 / 未列出的记录：${int(a.calls-modelCount)} 次。</p>` : ''}</section>
-    <section class="sec"><h4>⑤ 请求经过哪些协议？ ${tip('protocol')}</h4><p class="hint">协议是请求与模型服务之间使用的消息格式。下面显示所选时间范围内的主要协议，按日志中记录的端点推断，可能包含网关转换后的协议；不是当前配置清单。</p>${distribution(a.protocols.map(p=>({...p,label:protoNames[p.name] || p.name})),a.calls)}</section>
+    <section class="sec"><h4>⑤ 请求经过哪些协议？ ${tip('protocol')}</h4><p class="hint">协议是请求与模型服务之间使用的消息格式。下面显示所选时间范围内的主要协议，按日志中记录的端点推断，可能包含网关转换后的协议；不是当前配置清单。</p>${distribution(a.protocols.map(p=>({...p,label:protoNames[p.name] || p.name})),a.calls)}${protocolCount < a.calls ? `<p class="hint">其余 / 未列出的记录：${int(a.calls-protocolCount)} 次。</p>` : ''}</section>
     <section class="sec"><h4>⑥ 一次会话持续多久？ ${tip('sessionMedian')}</h4>${a.session?.measured ? `<div class="detail-metrics"><div><span>中位时长</span><b>${dur(a.session.median)}</b></div><div><span>90% 会话短于</span><b>${dur(a.session.p90)}</b></div><div><span>可测会话</span><b>${int(a.session.measured)}</b></div></div><p class="hint">按同一会话首末请求的跨度计算，包含思考与闲置，不是连续工作时间。当前统计窗口可能截断会话；${int(a.session.open || 0)} 个超过 6 小时的会话未参与时长统计。</p>` : '<div class="empty-note"><strong>暂时无法计算会话时长</strong><p>当前范围没有可用于时长统计的会话记录。请求次数和响应耗时仍可正常查看；这不代表 Agent 没有工作。</p></div>'}</section>
     <section class="sec"><h4>每天的输入用量</h4>${spark(a.series,'prompt','big') || '<p class="hint">数据不足，暂不绘制趋势。</p>'}<p class="hint">趋势反映使用规模，不是任务完成质量。</p></section>
   </div>`
