@@ -38,6 +38,17 @@ function when(t) {
   return new Date(t).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
 }
 
+// ---------- agent mark: magpie's own icon, else the initial ----------
+const PALETTE = ["#17A9A2", "#F26B1D", "#6D5DFC", "#2B8AE2", "#C2410C", "#0E7C77", "#8B5CF6", "#64748B"]
+function hue(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length] }
+function mark(a, size = 20) {
+  const initial = esc(String(a.name || a.agent || "?").trim().charAt(0).toUpperCase())
+  const letter = `<span class="mark letter" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.58)}px;background:${hue(a.agent)}">${initial}</span>`
+  if (!a.icon) return letter
+  return `<span class="mark" style="width:${size}px;height:${size}px"><img src="${a.icon.startsWith("data:") ? a.icon : "icons/" + encodeURIComponent(a.icon)}" alt="" width="${size}" height="${size}"></span>`
+}
+const label = (a) => esc(a.name || a.agent)
+
 // ---------- sparkline ----------
 function spark(series, key, cls = "") {
   if (!series || series.length < 2) return ""
@@ -116,8 +127,8 @@ function paintCards(d) {
       const w = (a.prompt / max) * 100
       const fullW = a.prompt ? (a.fullPrice / a.prompt) * w : 0
       const top1 = i === 0 && d.agents.length > 1
-      return `<div class="card${top1 ? " top1" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${esc(a.agent)} 详情">
-        <div class="card-head"><span class="card-name">${esc(a.agent)}</span>${top1 ? '<span class="tag">花得最多</span>' : ""}</div>
+      return `<div class="card${top1 ? " top1" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${label(a)} 详情">
+        <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${top1 ? '<span class="tag">花得最多</span>' : ""}</div>
         <div class="card-big num">${short(a.prompt)}<small>输入 token</small></div>
         <div class="stack" title="浅色：缓存读取；深色：按原价"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>
         <div class="card-meta">
@@ -144,7 +155,7 @@ const COLS = [
   ["p50ms", "耗时 p50", true],
   ["toolTokens", "工具 token/次", true],
 ]
-const val = (a, k) => (k === "toolTokens" ? a.tools?.avgTokens ?? -1 : a[k])
+const val = (a, k) => (k === "toolTokens" ? a.tools?.avgTokens ?? -1 : k === "agent" ? a.name || a.agent : a[k])
 
 function paintTable(d) {
   const { key, dir } = state.sort
@@ -156,7 +167,7 @@ function paintTable(d) {
   const head = COLS.map(([k, label, n]) => `<th class="${n ? "n" : ""}" data-key="${k}" ${k === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""} tabindex="0">${label}</th>`).join("")
   const body = rows
     .map((a) => `<tr tabindex="0" data-agent="${esc(a.agent)}">
-      <td class="agent"><span class="dot${a.agent === topAgent && d.agents.length > 1 ? " hot" : ""}"></span>${esc(a.agent)}</td>
+      <td class="agent"><span class="who">${mark(a, 18)}${label(a)}${a.agent === topAgent && d.agents.length > 1 ? '<span class="dot hot" title="花得最多"></span>' : ""}</span></td>
       <td class="n">${int(a.calls)}</td>
       <td class="n">${short(a.prompt)}</td>
       <td class="n">${short(a.avgPrompt)}</td>
@@ -184,7 +195,7 @@ function paintTools(d) {
   $("toolsHint").textContent = `从 ${when(d.toolsSince)} 开始采样，共 ${int(d.toolSamples)} 次请求。token 数按每 token 约 3.5 字节估算，各 Agent 口径一致。`
   $("tools").innerHTML = `<div class="table-wrap" style="padding:4px 16px">${sorted
     .map((a, i) => `<div class="tool-row">
-      <div class="agent"><b>${esc(a.agent)}</b></div>
+      <div class="agent who">${mark(a, 18)}<b>${label(a)}</b></div>
       <div class="tool-track"><div class="tool-fill${i === 0 && sorted.length > 1 ? " hot" : ""}" style="width:${((a.tools.avgBytes / max) * 100).toFixed(1)}%"></div></div>
       <div class="tool-val num">${Math.round(a.tools.avgCount)} 个 · ≈${short(a.tools.avgTokens)} token${a.tools.shareOfPrompt != null ? ` · 占 ${pct(a.tools.shareOfPrompt)}` : ""}</div>
     </div>`)
@@ -200,7 +211,8 @@ function openDetail(agent, focus = true) {
   const protos = a.protocols.map((p) => `<span class="chip">${esc(p.name)} · ${int(p.count)}</span>`).join("")
   const tools = a.tools ? a.tools.names.map((t) => `<span class="chip mono">${esc(t.name)}</span>`).join("") : ""
   $("detail").innerHTML = `<div class="detail">
-    <h3>${esc(a.agent)}</h3>
+    <h3 class="who">${mark(a, 28)}${label(a)}</h3>
+    ${a.name && a.name !== a.agent ? `<p class="hint">网关里的标识：<code>${esc(a.agent)}</code></p>` : ""}
     <p class="hint">${when(a.first)} — ${when(a.last)}</p>
     <div class="sec"><h4>每天读进模型的 token</h4>${spark(a.series, "prompt", "big") || '<p class="hint">不到两天的数据，画不出趋势。</p>'}</div>
     <div class="sec"><h4>用量</h4><div class="dl">

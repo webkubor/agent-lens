@@ -1,6 +1,6 @@
 {
   "name": "agent-lens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A magpie gateway plugin that shows what each agent behind your gateway actually costs you: tokens, money, and the weight of the tool definitions it re-sends on every turn",
   "type": "module",
   "files": [
@@ -45,7 +45,8 @@
       "dataDir": "",
       "usageLog": "",
       "agents": [],
-      "gatewayTimeoutMs": 2000
+      "gatewayTimeoutMs": 2000,
+      "gatewayUrl": ""
     }
   },
   "main": "./index.mjs",

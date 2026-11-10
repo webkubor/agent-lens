@@ -13,7 +13,7 @@
 
 ![Agent Lens 浅色主题](docs/preview-light.png)
 
-> 截图是作者本机 7 天的真实用量（magpie 自己的 `usage.jsonl`），没有模拟数据。「工具定义重量」一栏要等网关 hook 采样后才有数，截图里显示的是还没采样时的提示。
+> 截图是作者本机 7 天的真实用量，在和 magpie 一样的沙箱框架里实拍，没有模拟数据。Agent 名字和图标与 magpie 自己显示的一致。
 
 ## 它回答什么问题
 
@@ -55,7 +55,8 @@ magpie usage.jsonl ─────────────┐
 | 用量读取 | `lib/usage.mjs` | 增量读取 magpie 的 `usage.jsonl`，几百 MB 的文件也只读新增部分；内存里保留 31 天。 |
 | 本地服务 | `service.mjs` | 只监听 127.0.0.1，提供界面和 `/api/summary`。 |
 | 带路页 | `page/` | magpie 的插件页沙箱禁止联网，只能把自己导航到本地服务，顺便带上主题和语言。 |
-| 界面 | `app/` | 结论、总览、Agent 卡片、可排序的对比表、工具重量、详情抽屉；支持浅色、深色和手机宽度。 |
+| 界面 | `app/` | 采集状态、结论、总览、Agent 卡片、可排序的对比表、工具重量、详情抽屉；支持浅色、深色和手机宽度。 |
+| 名字与图标 | `lib/brands.mjs`、`app/icons/` | 从网关 `/v1/magpie/usage` 取每个 Agent 的显示名和图标名，和 magpie 侧栏一致；没有图标的显示首字母。 |
 
 ### 口径说明
 
@@ -74,6 +75,11 @@ magpie usage.jsonl ─────────────┐
 | `usageLog` | `~/.config/magpie/usage.jsonl` | magpie 用量记录的位置 |
 | `dataDir` | `~/.config/magpie/agent-lens` | 工具采样存放目录 |
 | `agents` | `[]` | 只采样这些 Agent；空表示全部 |
+| `gatewayUrl` | `http://127.0.0.1:3425` | 取 Agent 名字和图标用的网关地址 |
+
+## 图标来源
+
+`app/icons/` 是 magpie 为各 Agent 显示的同一套图标，取自社区插件 page-agent-office（MIT），品牌图形来自 [@lobehub/icons](https://github.com/lobehub/lobe-icons)（MIT）。各标志归其所有者，只用来标明对应的 Agent，详见 `app/icons/NOTICE`。
 
 ## 隐私
 
@@ -99,7 +105,7 @@ npm run dev   # 直接起服务：http://127.0.0.1:3492/
 
 ## 状态
 
-v0.2.0。按 Agent 的用量对比已在作者本机用真实数据验证；网关 hook 有单测，正在接入真实网关做端到端验证。
+v0.3.0。已装在作者本机 magpie 上端到端跑通：用量对比、hook 实时采样工具定义、magpie 窗口沙箱内显示均已实测。
 
 ---
 

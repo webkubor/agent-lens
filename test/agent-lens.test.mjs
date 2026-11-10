@@ -66,3 +66,24 @@ test("hook never changes the request and writes only names and numbers", async (
   assert.equal(row.agent, "dsh"); assert.equal(row.tools, 1); assert.deepEqual(row.toolNames, ["Read"]); assert.equal(row.cacheRead, 5)
   assert.ok(!text.includes("SECRET"))
 })
+
+test("insights ignore clients and use display names", () => {
+  const now = Date.now()
+  const r = (agent, inp, cr) => ({ t: now - 1000, agent, model: "m", protocol: "chat", in: inp, out: 1, cacheRead: cr, cacheWrite: 0, credits: 0, ms: 1, ttft: 1, failed: false, cancelled: false })
+  const usage = [...Array(30)].flatMap(() => [r("a", 10, 90), r("b", 50, 50), r("curl", 1, 0)])
+  const s = summarize({ usage, period: "7d", now, showClients: true, nameOf: (x) => ({ a: "Agent A" })[x] || x })
+  assert.ok(s.insights.every((i) => !i.text.includes("curl")))
+  assert.ok(s.insights.some((i) => i.text.includes("Agent A")))
+})
+
+test("brands come from the gateway and fall back softly", async () => {
+  const { createBrands } = await import("../lib/brands.mjs")
+  const ok = createBrands({}, async () => ({ ok: true, json: async () => ({ agents: [{ id: "claude", name: "Claude Code", icon: "claudecode-color" }, { id: "x", name: "X", icon: "generic" }] }) }))
+  await ok.refresh()
+  assert.deepEqual(ok.of("claude"), { name: "Claude Code", icon: "claudecode-color.svg" })
+  assert.equal(ok.of("x").icon, null)
+  assert.match(await ok.dataUri("claudecode-color.svg"), /^data:image\/svg\+xml;base64,/)
+  const down = createBrands({}, async () => { throw new Error("down") })
+  await down.refresh()
+  assert.equal(down.of("codex").name, "codex")
+})

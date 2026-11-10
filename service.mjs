@@ -15,17 +15,19 @@ import { toolsLog, usageLog } from "./lib/paths.mjs"
 import { createToolsReader } from "./lib/tools.mjs"
 import { createUsageReader } from "./lib/usage.mjs"
 import { PERIODS, summarize } from "./lib/summarize.mjs"
+import { createBrands } from "./lib/brands.mjs"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const APP = join(HERE, "app")
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png",
+  ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp",
 }
 
 export function createHandler(options = {}) {
   const usage = createUsageReader(usageLog(options))
   const tools = createToolsReader(toolsLog(options))
+  const brands = createBrands(options)
 
   return async function handle(req, res) {
     const url = new URL(req.url ?? "/", "http://127.0.0.1")
@@ -38,14 +40,19 @@ export function createHandler(options = {}) {
     if (req.headers.origin === "null") res.setHeader("Access-Control-Allow-Origin", "null")
     try {
       if (url.pathname === "/api/summary") {
-        await Promise.all([usage.refresh(), tools.refresh()])
+        await Promise.all([usage.refresh(), tools.refresh(), brands.refresh()])
         const period = PERIODS[url.searchParams.get("period")] ? url.searchParams.get("period") : "7d"
         const tz = Number(url.searchParams.get("tz"))
         const body = summarize({
           usage: usage.rows(), tools: tools.rows(), period,
           showClients: url.searchParams.get("clients") === "1",
           tzOffsetMin: Number.isFinite(tz) ? tz : 0,
+          nameOf: (a) => brands.of(a).name,
         })
+        for (const a of body.agents) {
+          const b = brands.of(a.agent)
+          Object.assign(a, { name: b.name, icon: await brands.dataUri(b.icon) })
+        }
         body.sources = { usageLog: usage.file, toolsLog: tools.file, usageRows: usage.rows().length, toolRows: tools.rows().length }
         return json(res, 200, body)
       }
