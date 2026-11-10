@@ -13,7 +13,7 @@
 
 ![HarnessWeight 浅色主题](docs/preview-light.png)
 
-https://github.com/user-attachments/assets/3798be90-5b2b-411e-b83b-22688fd8a82e
+https://github.com/user-attachments/assets/866f1b60-b5c6-4128-8828-15646b10a32e
 
 > ▶ 30 秒演示：结论 → Agent 卡片 → 排序 → 详情 → 切 30 天 → 深色。
 
