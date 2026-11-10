@@ -37,6 +37,7 @@
 
 ```sh
 magpie plugin add github:webkubor/agent-lens
+# 合并进社区仓后：magpie plugin add @magpie-community/page-agent-lens
 ```
 
 装好后，magpie 侧栏「插件」里会多一个「Agent 透镜」页。历史数据马上能看到，因为它读的是 magpie 已有的用量记录；工具定义重量从安装后的下一次请求开始采样。
