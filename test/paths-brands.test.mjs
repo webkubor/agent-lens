@@ -11,9 +11,10 @@ import { createServer } from "node:http"
 function isolated(fn) {
   const dir = mkdtempSync(join(tmpdir(), "harnessweight-paths-"))
   const cwd = process.cwd()
-  const keys = ["XDG_CONFIG_HOME", "MAGPIE_ADDR", "MAGPIE_GATEWAY_URL"]
+  const keys = ["XDG_CONFIG_HOME", "MAGPIE_ADDR", "MAGPIE_GATEWAY_URL", "HOME"]
   const previous = Object.fromEntries(keys.map((k) => [k, process.env[k]]))
   for (const k of keys) delete process.env[k]
+  process.env.HOME = realpathSync(dir)
   process.chdir(dir)
   try { return fn(dir) } finally {
     process.chdir(cwd)
@@ -112,9 +113,10 @@ test("a symlinked config dir names the same directory as its real path", () => i
 }))
 
 test("standalone uses absolute XDG and rejects relative XDG", () => isolated((dir) => {
-  assert.equal(magpieDir(), join(homedir(), ".config", "magpie"))
+  const expectedHome = magpieDir({ directory: join(homedir(), ".config", "magpie") })
+  assert.equal(magpieDir(), expectedHome)
   process.env.XDG_CONFIG_HOME = "relative-config"
-  assert.equal(magpieDir(), join(homedir(), ".config", "magpie"))
+  assert.equal(magpieDir(), expectedHome)
   process.env.XDG_CONFIG_HOME = join(dir, "xdg")
   assert.equal(magpieDir(), join(realpathSync(dir), "xdg", "magpie"))
 }))
