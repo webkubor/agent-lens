@@ -13,7 +13,7 @@
 
 ![Agent Lens 浅色主题](docs/preview-light.png)
 
-[![▶ 30 秒演示视频（点击播放）](docs/demo-poster.jpg)](https://github.com/webkubor/agent-lens/releases/download/v0.3.0/agent-lens-demo.mp4)
+https://github.com/user-attachments/assets/3798be90-5b2b-411e-b83b-22688fd8a82e
 
 > ▶ 30 秒演示：结论 → Agent 卡片 → 排序 → 详情 → 切 30 天 → 深色。
 
