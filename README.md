@@ -10,8 +10,8 @@
 <p align="center">给网关后面的每个 <b>agent harness</b> 称重：读了多少 token、命中多少缓存、失败多少次、每轮重发多重的工具定义。</p>
 
 <p align="center">
-  <a href="https://github.com/magpie-community/plugins/pull/922"><img alt="已收录 magpie 社区插件" src="https://img.shields.io/badge/magpie%20%E7%A4%BE%E5%8C%BA-%E5%B7%B2%E6%94%B6%E5%BD%95-17A9A2"></a>
-  <a href="package.json"><img alt="版本" src="https://img.shields.io/github/package-json/v/webkubor/harnessweight?label=%E7%89%88%E6%9C%AC&color=2B2F36"></a>
+  <a href="https://github.com/magpie-community/plugins/tree/main/packages/page-harnessweight"><img alt="magpie 社区版" src="https://img.shields.io/github/package-json/v/magpie-community/plugins?filename=packages%2Fpage-harnessweight%2Fpackage.json&label=magpie%20%E7%A4%BE%E5%8C%BA%E7%89%88&color=17A9A2"></a>
+  <a href="package.json"><img alt="版本" src="https://img.shields.io/github/package-json/v/webkubor/harnessweight?label=%E6%9C%AC%E4%BB%93%E7%89%88&color=2B2F36"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/github/license/webkubor/harnessweight?label=%E8%AE%B8%E5%8F%AF&color=2B2F36"></a>
   <img alt="零运行时依赖" src="https://img.shields.io/badge/%E8%BF%90%E8%A1%8C%E6%97%B6%E4%BE%9D%E8%B5%96-0-17A9A2">
   <img alt="只在本机运行" src="https://img.shields.io/badge/%E6%95%B0%E6%8D%AE-%E5%8F%AA%E5%9C%A8%E6%9C%AC%E6%9C%BA-F26B1D">
