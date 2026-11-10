@@ -81,9 +81,9 @@ magpie usage.jsonl ─────────────┐
 
 `app/icons/` 是 magpie 为各 Agent 显示的同一套图标，取自社区插件 page-agent-office（MIT），品牌图形来自 [@lobehub/icons](https://github.com/lobehub/lobe-icons)（MIT）。各标志归其所有者，只用来标明对应的 Agent，详见 `app/icons/NOTICE`。
 
-## 隐私
+## 隐私与安全
 
-数据只在本机读取，不上传，没有遥测。hook 写下的每一行只有名字和数字；测试里专门断言了提示词内容不会落盘。
+数据只在本机读取，不上传，没有遥测。本地服务只监听 127.0.0.1，并且：每次启动生成随机口令，只写进界面 HTML（该 HTML 不带 CORS 头，其他网页读不到），所有 `/api/` 请求都要带上它；校验 Host（防 DNS 重绑定）和 Origin；只接受 GET。hook 写下的每一行只有名字和数字；测试里专门断言了提示词内容不会落盘。
 
 ## 开发
 

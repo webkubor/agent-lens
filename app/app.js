@@ -17,6 +17,12 @@ const state = {
   openAgent: null,
 }
 
+// the service writes a per-start token into this page's HTML
+const TOKEN = document.querySelector('meta[name="agent-lens-token"]')?.content || ""
+let reloaded = false
+const sessionStorageSafe = () => reloaded || location.hash === "#r"
+function markReloaded() { reloaded = true; location.hash = "r" }
+
 // ---------- formatting ----------
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c])
 function short(n) {
@@ -259,7 +265,9 @@ async function load() {
   try {
     const p = new URLSearchParams({ period: state.period, tz: String(new Date().getTimezoneOffset()) })
     if (state.clients) p.set("clients", "1")
+    p.set("k", TOKEN)
     const res = await fetch(`/api/summary?${p}`, { cache: "no-store" })
+    if (res.status === 403 && !sessionStorageSafe("al.reloaded")) { markReloaded(); return location.reload() }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     state.data = await res.json()
     paint()
