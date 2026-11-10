@@ -9,6 +9,15 @@
 
 <p align="center">给网关后面的每个 <b>agent harness</b> 称重：读了多少 token、命中多少缓存、失败多少次、每轮重发多重的工具定义。</p>
 
+<p align="center">
+  <a href="https://github.com/magpie-community/plugins/pull/922"><img alt="已收录 magpie 社区插件" src="https://img.shields.io/badge/magpie%20%E7%A4%BE%E5%8C%BA-%E5%B7%B2%E6%94%B6%E5%BD%95-17A9A2"></a>
+  <a href="package.json"><img alt="版本" src="https://img.shields.io/github/package-json/v/webkubor/harnessweight?label=%E7%89%88%E6%9C%AC&color=2B2F36"></a>
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/github/license/webkubor/harnessweight?label=%E8%AE%B8%E5%8F%AF&color=2B2F36"></a>
+  <img alt="零运行时依赖" src="https://img.shields.io/badge/%E8%BF%90%E8%A1%8C%E6%97%B6%E4%BE%9D%E8%B5%96-0-17A9A2">
+  <img alt="只在本机运行" src="https://img.shields.io/badge/%E6%95%B0%E6%8D%AE-%E5%8F%AA%E5%9C%A8%E6%9C%AC%E6%9C%BA-F26B1D">
+  <img alt="中文 / English" src="https://img.shields.io/badge/%E7%95%8C%E9%9D%A2-%E4%B8%AD%E6%96%87%20%2F%20English-FFB547">
+</p>
+
 <p align="center"><b>中文</b> · <a href="#english">English</a></p>
 
 ![HarnessWeight 浅色主题](docs/preview-light.png)
@@ -25,7 +34,7 @@ https://github.com/user-attachments/assets/866f1b60-b5c6-4128-8828-15646b10a32e
 
 - **谁在花你的 token**：每个 Agent 读进模型的总 token，其中多少命中缓存、多少按原价。
 - **谁每次读得最多**：每次请求的平均输入。上下文越大，越贵。
-- **谁最不稳**：失败率、首字延迟和总耗时（p50）。失败的请求同样会读 token。
+- **谁最不稳**：失败率、首字延迟和总耗时（p50）。失败的请求也可能消耗 token。
 - **谁的工具清单最重**：Agent 每轮都会把整份工具定义重发一遍，HarnessWeight 在网关上量出它有几个、多大。
 
 页面顶部直接给出几句结论，例如「dsh 占了这段时间 87.9% 的输入 token」「mimocode 的失败率是 10.5%」。
@@ -40,8 +49,8 @@ https://github.com/user-attachments/assets/866f1b60-b5c6-4128-8828-15646b10a32e
 ## 安装
 
 ```sh
-magpie plugin add github:webkubor/harnessweight
-# 合并进社区仓后：magpie plugin add @magpie-community/page-harnessweight
+magpie plugin add @magpie-community/page-harnessweight
+# 或直接装本仓最新版：magpie plugin add github:webkubor/harnessweight
 ```
 
 装好后，magpie 侧栏「插件」里会多一个「HarnessWeight」页。历史数据马上能看到，因为它读的是 magpie 已有的用量记录；工具定义重量从安装后的下一次请求开始采样。
@@ -150,7 +159,7 @@ Full method, all seven harnesses and the caveats:
 ### Install
 
 ```sh
-magpie plugin add github:webkubor/harnessweight
+magpie plugin add @magpie-community/page-harnessweight
 ```
 
 Zero runtime dependencies. The local service binds 127.0.0.1 only, generates a random
@@ -166,7 +175,7 @@ network request of its own.
 
 ## 社区收录
 
-- 社区仓 PR：[magpie-community/plugins#922](https://github.com/magpie-community/plugins/pull/922)（审核中，合并后可用 `@magpie-community/page-harnessweight` 安装）
+- 已合入社区仓：[magpie-community/plugins#922](https://github.com/magpie-community/plugins/pull/922)（2026-11-10，合并提交 `186b642`），可用 `@magpie-community/page-harnessweight` 安装
 - 登记条目：`registry.json` 里的 `@magpie-community/page-harnessweight`
 - 社区 README 的 Pages 和 Gateway hooks 两张表各有一行
 
