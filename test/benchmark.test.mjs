@@ -56,12 +56,11 @@ test("summarizeRuns rejects non-2xx/3xx and computes error rates over all sample
   assert.deepEqual(s[0].topErrors.map(e => e.split(" ")[0]), ["disabled", "boom"])
 })
 
-test("parseModels keeps one known model per provider and prefers fallback ids", () => {
+test("parseModels keeps one model per provider and prefers the known-good id", () => {
   const models = parseModels([
-    { id: "deepseek/deepseek-flash" },
     { id: "deepseek/deepseek-v4.1-flash" },
+    { id: "deepseek/deepseek-flash" },
     { id: "codex/gpt-6.1-sol" },
-    { id: "unknown/x1" },
     { id: "group/team-a" },
     { id: "plain-id" },
     { id: 7 },
@@ -70,14 +69,31 @@ test("parseModels keeps one known model per provider and prefers fallback ids", 
   assert.equal(models.deepseek, "deepseek/deepseek-flash")
   assert.equal(models.codex, "codex/gpt-6.1-sol")
   assert.equal("plain-id" in models, false)
-  assert.equal(Object.keys(models).length, 2)
+  assert.equal("group" in models, false)
+  assert.deepEqual(Object.keys(models).sort(), ["codex", "deepseek"])
 })
 
-test("parseModels falls back to first model when nothing known matches", () => {
-  const models = parseModels([{ id: "alpha/a1" }])
-  assert.deepEqual(models, { alpha: "alpha/a1" })
+test("parseModels covers every routed provider, not only the hardcoded table", () => {
+  // A supplier the tool has never heard of must still be benchmarked;
+  // otherwise the sweep silently covers only a handful of providers.
+  const models = parseModels([
+    { id: "alpha/a1" },
+    { id: "bravo/b1" },
+    { id: "charlie/c1" },
+  ])
+  assert.deepEqual(models, { alpha: "alpha/a1", bravo: "bravo/b1", charlie: "charlie/c1" })
+})
+
+test("parseModels caps the number of providers but keeps the first ones", () => {
+  const listing = Array.from({ length: 10 }, (_, i) => ({ id: `p${i}/m${i}` }))
+  const models = parseModels(listing, { maxProviders: 3 })
+  assert.deepEqual(Object.keys(models), ["p0", "p1", "p2"])
+})
+
+test("parseModels falls back to the known ids when the listing is unusable", () => {
   assert.deepEqual(parseModels([]), {})
   assert.deepEqual(parseModels(null), {})
+  assert.deepEqual(parseModels([{ id: "plain-id" }]), {})
 })
 
 test("runBenchmark issues one request per provider through the gateway and writes JSONL records", async () => {
