@@ -161,6 +161,53 @@ test("runBenchmark issues one request per provider through the gateway and write
   }
 })
 
+test("runBenchmark classifies and persists an aborted HTTP request as a timeout", { timeout: 5000 }, async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "hw-bench-abort-"))
+  const received = []
+  const server = createServer((req, res) => {
+    let body = ""
+    req.on("data", chunk => { body += chunk })
+    req.on("end", () => {
+      received.push({ method: req.method, url: req.url, body: JSON.parse(body) })
+      // Leave headers and body unsent so the shipped request deadline aborts fetch.
+    })
+  })
+  t.after(async () => {
+    server.closeAllConnections()
+    await new Promise(resolve => server.close(resolve))
+    await rm(dir, { recursive: true, force: true })
+  })
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve))
+  const file = join(dir, "bench.jsonl")
+  const model = "stall/waiting"
+  const { rows, summary } = await runBenchmark({
+    gateway: `http://127.0.0.1:${server.address().port}`,
+    file,
+    models: { stall: model },
+    perRequestMs: 300,
+  })
+
+  assert.equal(received.length, 1)
+  assert.equal(received[0].method, "POST")
+  assert.equal(received[0].url, "/v1/chat/completions")
+  assert.equal(received[0].body.model, model)
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].status, 0)
+  assert.equal(rows[0].timedOut, true)
+  assert.ok(rows[0].error)
+  const persisted = (await readFile(file, "utf8")).trim().split("\n").map(JSON.parse)
+  assert.equal(persisted.length, 1)
+  assert.equal(persisted[0].status, 0)
+  assert.equal(persisted[0].timedOut, true)
+  assert.deepEqual(persisted, rows)
+  assert.equal(summary[0].samples, 1)
+  assert.equal(summary[0].ok, 0)
+  assert.equal(summary[0].fail, 1)
+  assert.equal(summary[0].timeout, 1)
+  assert.equal(summary[0].errorRate, 1)
+  t.diagnostic(JSON.stringify({ requestsReceived: received.length, record: persisted[0], timeoutCount: summary[0].timeout }))
+})
+
 test("runBenchmark repeats each provider the requested number of samples", async () => {
   const dir = await mkdtemp(join(tmpdir(), "hw-bench-"))
   let chatHit = 0
