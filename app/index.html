@@ -50,8 +50,32 @@
     <div class="block-head">
       <h2 data-t="table.title">逐项对比</h2>
       <p class="hint" data-t="table.hint">点表头排序，点一行看详情。</p>
+      <p class="hint" data-t="table.extrema"></p>
     </div>
     <div class="table-wrap"><table id="table"></table></div>
+  </section>
+
+  <section class="block" id="providersBlock" aria-busy="false">
+    <div class="block-head">
+      <h2 data-t="providers.title"></h2>
+      <p class="hint" data-t="providers.hint"></p>
+    </div>
+    <div class="provider-controls">
+      <label><span data-t="providers.provider"></span><select id="providerSelect"></select></label>
+      <label><span data-t="providers.model"></span><select id="providerModel"></select></label>
+      <button class="pill" id="providerShare" aria-pressed="false" data-t="providers.share"></button>
+    </div>
+    <div id="providerReport" class="provider-report">
+      <div class="report-brand">HarnessWeight <span data-t="providers.observed"></span></div>
+      <h2 id="providerReportTitle"></h2>
+      <p class="hint" id="providerScope"></p>
+      <div class="kpis" id="providerKpis"></div>
+      <p class="hint" data-t="providers.formula"></p>
+      <div class="table-wrap"><table id="providerTable"></table></div>
+      <p class="hint" data-t="providers.drilldown"></p>
+      <div id="providerReasons" aria-live="polite"></div>
+      <p class="report-note" data-t="providers.caveat"></p>
+    </div>
   </section>
 
   <section class="block" id="toolsBlock">

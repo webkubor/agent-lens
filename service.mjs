@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url"
 import { toolsLog, usageLog } from "./lib/paths.mjs"
 import { createToolsReader } from "./lib/tools.mjs"
 import { createUsageReader } from "./lib/usage.mjs"
+import { summarizeProviders } from "./lib/providers.mjs"
 import { PERIODS, summarize } from "./lib/summarize.mjs"
 import { createBrands } from "./lib/brands.mjs"
 import { activity } from "./lib/activity.mjs"
@@ -93,7 +94,9 @@ export function createHandler(options = {}) {
         // the page sends the language it rendered in, so the insights it gets
         // back are in the same language as the rest of the page
         const lang = pageLanguage(url.searchParams.get("lang"))
+        const now = Date.now()
         const body = summarize({
+          now,
           usage: usage.rows(), tools: tools.rows(), period,
           showClients: url.searchParams.get("clients") === "1",
           tzOffsetMin: Number.isFinite(tz) ? tz : 0,
@@ -104,6 +107,11 @@ export function createHandler(options = {}) {
           const b = brands.of(a.agent)
           Object.assign(a, { name: b.name, icon: await brands.dataUri(b.icon) })
         }
+        body.providerView = summarizeProviders(usage.rows(), {
+          since: now - PERIODS[period], now,
+          showClients: url.searchParams.get("clients") === "1",
+          model: url.searchParams.get("providerModel") || "",
+        })
         body.sources = { usageLog: usage.file, toolsLog: tools.file, usageRows: usage.rows().length, toolRows: tools.rows().length }
         cors()
         return json(res, 200, body)

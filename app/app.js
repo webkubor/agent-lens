@@ -1,6 +1,8 @@
 // HarnessWeight — the interface. Served by the plugin's own service, so the
 // data is a same-origin fetch away.
 
+import { DIRECTIONS, metricValue, extrema, extremum } from "./comparison.js"
+import { providerView } from "./providers.js"
 import { explainFor, COLS, CARD_SORTS } from "./explain.js"
 import { pageLanguage, languageTags, translate } from "./i18n.mjs"
 
@@ -194,6 +196,8 @@ function spark(series, key, cls = "") {
 function paint() {
   const d = state.data
   $("state").hidden = true
+  $("providerReport").hidden = false
+  providers.paint(d)
   if (!d.agents.length) {
     for (const id of ["insights", "kpis", "cards", "tools"]) $(id).innerHTML = ""
     $("table").innerHTML = ""
@@ -294,7 +298,14 @@ function paintCardSort() {
     `<button class="pill${state.cardSort === k ? " on" : ""}" data-sort="${k}" aria-pressed="${state.cardSort === k}">${esc(T(nameKey))}</button>`).join("")
 }
 
+function metricCell(a, key, formatted, ranges) {
+  const value = metricValue(a, key)
+  const edge = extremum(value, ranges[key], DIRECTIONS[key])
+  return `<td class="n ${edge ? `metric-${edge.quality}` : ""}" data-metric="${key}">${value === null ? "—" : formatted}${edge ? `<span class="extreme-label" title="${esc(T(`extreme.${edge.edge}`))}">${esc(T(`extreme.${edge.quality}`))}</span>` : ""}</td>`
+}
+
 function paintTable(d) {
+  const ranges = extrema(d.agents)
   const { key, dir } = state.sort
   const rows = [...d.agents].sort((x, y) => {
     const a = val(x, key), b = val(y, key)
@@ -305,18 +316,18 @@ function paintTable(d) {
   const body = rows
     .map((a) => `<tr tabindex="0" data-agent="${esc(a.agent)}">
       <td class="agent"><span class="who">${mark(a, 18)}${label(a)}${a.agent === topAgent && d.agents.length > 1 ? `<span class="dot hot" title="${esc(T("table.topSpenderTitle"))}"></span>` : ""}</span></td>
-      <td class="n">${int(a.calls)}</td>
-      <td class="n">${short(a.prompt)}</td>
-      <td class="n">${short(a.avgPrompt)}</td>
-      <td class="n">${pct(a.cacheRate)}</td>
-      <td class="n">${short(a.fullPrice)}</td>
-      <td class="n">${short(a.out)}</td>
-      <td class="n ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(a.errorRate)}</td>
-      <td class="n">${secs(a.p50ttft)}</td>
-      <td class="n">${secs(a.p50ms)}</td>
-      <td class="n">${a.tools ? short(a.tools.avgTokens) : "—"}</td>
+      ${metricCell(a, "calls", int(a.calls), ranges)}
+      ${metricCell(a, "prompt", short(a.prompt), ranges)}
+      ${metricCell(a, "avgPrompt", short(a.avgPrompt), ranges)}
+      ${metricCell(a, "cacheRate", pct(a.cacheRate), ranges)}
+      ${metricCell(a, "fullPrice", short(a.fullPrice), ranges)}
+      ${metricCell(a, "out", short(a.out), ranges)}
+      ${metricCell(a, "errorRate", pct(a.errorRate), ranges)}
+      ${metricCell(a, "p50ttft", secs(a.p50ttft), ranges)}
+      ${metricCell(a, "p50ms", secs(a.p50ms), ranges)}
+      ${metricCell(a, "toolTokens", a.tools ? short(a.tools.avgTokens) : "—", ranges)}
       <td class="n proto-cell" title="${esc(a.protocols?.map((p) => p.name).join(", ")) || ""}">${a.protocols?.length ? esc(a.protocols[0].name) : "—"}</td>
-      <td class="n">${a.session?.median ? dur(a.session.median) : "—"}</td>
+      ${metricCell(a, "session", dur(a.session?.median), ranges)}
     </tr>`)
     .join("")
   $("table").innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`
@@ -401,6 +412,12 @@ function closeDetail() {
   $("scrim").hidden = true
 }
 
+const providers = providerView({ T, esc, int, pct, locale: LOCALE, onModelChange: model => {
+  state.providerModel = model
+  load()
+} })
+let loadSequence = 0
+
 // ---------- loading ----------
 function showState(text, err = false) {
   $("state").hidden = false
@@ -409,19 +426,31 @@ function showState(text, err = false) {
 }
 
 async function load() {
+  if (providers.isSharing()) return
+  const sequence = ++loadSequence
+  $("providersBlock").setAttribute("aria-busy", "true")
+  $("providerShare").disabled = true
   if (!state.data) $("cards").innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>'
   try {
     const p = new URLSearchParams({ period: state.period, tz: String(new Date().getTimezoneOffset()) })
     if (state.clients) p.set("clients", "1")
+    if (state.providerModel) p.set("providerModel", state.providerModel)
     p.set("lang", LANG)
     p.set("k", TOKEN)
     const res = await fetch(`/api/summary?${p}`, { cache: "no-store" })
     if (res.status === 403 && !sessionStorageSafe("al.reloaded")) { markReloaded(); return location.reload() }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    state.data = await res.json()
+    const data = await res.json()
+    if (sequence !== loadSequence || providers.isSharing()) return
+    state.data = data
     paint()
   } catch (e) {
-    showState(T("state.loadError", { message: e.message }), true)
+    if (sequence === loadSequence) {
+      showState(T("state.loadError", { message: e.message }), true)
+      $("providerReport").hidden = true
+    }
+  } finally {
+    if (sequence === loadSequence) $("providersBlock").setAttribute("aria-busy", "false")
   }
 }
 
