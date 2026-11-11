@@ -67,15 +67,16 @@
       <button class="pill" id="providerShare" aria-pressed="false" data-t="providers.share"></button>
     </div>
     <div id="providerReport" class="provider-report">
-      <div class="report-brand">HarnessWeight <span data-t="providers.observed"></span></div>
-      <h2 id="providerReportTitle"></h2>
-      <p class="hint" id="providerScope"></p>
-      <div class="kpis" id="providerKpis"></div>
-      <p class="hint" data-t="providers.formula"></p>
+      <header class="report-head">
+        <div class="report-brand">HarnessWeight <span data-t="providers.observed"></span></div>
+        <h2 id="providerReportTitle"></h2>
+        <p class="hint" id="providerScope"></p>
+      </header>
+      <dl class="report-stats" id="providerKpis"></dl>
       <div class="table-wrap"><table id="providerTable"></table></div>
       <p class="hint" data-t="providers.drilldown"></p>
       <div id="providerReasons" aria-live="polite"></div>
-      <p class="report-note" data-t="providers.caveat"></p>
+      <footer class="report-note"><p data-t="providers.formula"></p><p data-t="providers.caveat"></p></footer>
     </div>
   </section>
 

@@ -1,9 +1,13 @@
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
+import { reportHtml } from "../lib/bench-report.mjs"
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { createServer } from "node:http"
-import { mkdtemp, writeFile, rm, readFile } from "node:fs/promises"
+import { mkdtemp, writeFile, rm, readFile, readdir } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { existsSync } from "node:fs"
 import { parseModels, summarizeRuns, runBenchmark, DEFAULT_MODELS } from "../lib/benchmark.mjs"
 
 const okRun = (over = {}) => ({
@@ -242,4 +246,116 @@ test("runBenchmark repeats each provider the requested number of samples", async
 test("DEFAULT_MODELS maps known suppliers to gateway-format ids with a provider prefix", () => {
   const ids = Object.values(DEFAULT_MODELS)
   for (const id of ids) assert.equal(id.includes("/") && !id.startsWith("group/"), true, id)
+})
+
+test("saved reports escape labels, omit raw errors and share metric extrema without inventing missing latency", () => {
+  const rows = [
+    okRun({ provider: '<unsafe>', model: '<unsafe>/a1' }),
+    okRun({ provider: 'beta', model: 'beta/b1' }),
+    okRun({ provider: 'failed', model: 'failed/c1', status: 403, ttft: null, error: 'secret upstream body' }),
+  ]
+  const summary = summarizeRuns(rows)
+  const before = structuredClone(summary)
+  const html = reportHtml({ summary, rows, task: '<text>', file: '/private/path/run.jsonl', generatedAt: 0 }, '/* shared tokens */')
+  assert.match(html, /&lt;unsafe&gt;/)
+  assert.match(html, /&lt;text&gt;/)
+  assert.doesNotMatch(html, /secret upstream body|private\/path|<unsafe>/)
+  assert.match(html, /Authentication \/ permission · HTTP 403/)
+  assert.match(html, /<details class="bench-errors">/)
+  assert.match(html, /not first-token latency/)
+  assert.match(html, /shared tokens/)
+  const body = html.match(/<tbody>(.*?)<\/tbody>/s)[1]
+  assert.equal((body.match(/metric-best/g) || []).length, 2)
+  assert.equal((body.match(/metric-worst/g) || []).length, 1)
+  assert.equal((body.match(/<td class="n">—<\/td>/g) || []).length, 3)
+  assert.deepEqual(summary, before)
+})
+
+test("saved summary-only and empty reports render without network data", () => {
+  const summary = summarizeRuns([okRun({ status: 429, error: 'rate limit: raw private payload' })])
+  const html = reportHtml({ summary, task: 'text', generatedAt: 0 }, '')
+  assert.match(html, /Rate limit/)
+  assert.doesNotMatch(html, /raw private payload/)
+  assert.match(reportHtml({ summary: [], task: 'text', generatedAt: 0 }, ''), /No recorded samples/)
+})
+
+test("bench CLI retains report, JSONL, JSON output and failure exit code against a local mock gateway", async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'hw-bench-cli-'))
+  let calls = 0
+  const server = createServer((req, res) => {
+    calls++
+    req.resume()
+    res.writeHead(calls === 1 ? 200 : 429, { 'content-type': 'application/json' })
+    res.end(JSON.stringify(calls === 1 ? { choices: [{ message: { content: 'ok' } }] } : { error: { message: 'rate limited' } }))
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }) })
+  const file = join(dir, 'runs.jsonl'), report = join(dir, 'report.html')
+  let result
+  try {
+    await promisify(execFile)(process.execPath, [new URL('../bin/bench.js', import.meta.url).pathname, '--gateway', 'http://127.0.0.1:' + server.address().port, '--providers', 'deepseek', '--samples', '2', '--file', file, '--report', report, '--json'])
+    assert.fail('A 50% failure rate must exit with code 2')
+  } catch (error) { assert.equal(error.code, 2); result = error.stdout }
+  assert.equal(calls, 2)
+  assert.equal((await readFile(file, 'utf8')).trim().split('\n').length, 2)
+  const data = JSON.parse(await readFile(join(dir, 'bench-data.json'), 'utf8'))
+  assert.equal(data.summary[0].errorRate, 0.5)
+  assert.equal(data.samples, 2)
+  assert.equal(JSON.parse(result.slice(result.indexOf('{'))).summary[0].samples, 2)
+  const html = await readFile(report, 'utf8')
+  assert.match(html, /--teal:/)
+  assert.match(html, /HTTP 429/)
+  assert.doesNotMatch(html, /undefined|http:\/\/127\.0\.0\.1/)
+})
+
+test("bench CLI prints help without any request, file write or report", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "hw-bench-help-"))
+  let calls = 0
+  const server = createServer((req, res) => { calls++; req.resume(); res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}') })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }) })
+  const gateway = 'http://127.0.0.1:' + server.address().port
+  const file = join(dir, 'runs.jsonl'), report = join(dir, 'report.html')
+  for (const flag of ['--help', '-h']) {
+    const { stdout } = await promisify(execFile)(process.execPath, [new URL('../bin/bench.js', import.meta.url).pathname, flag, '--gateway', gateway, '--file', file, '--report', report])
+    assert.match(stdout, /Usage: bench \[options\]/)
+    assert.match(stdout, /--providers a,b/)
+    assert.doesNotMatch(stdout, /Gateway:/)
+  }
+  assert.equal(calls, 0)
+  assert.equal(existsSync(file), false)
+  assert.equal(existsSync(report), false)
+  assert.equal(existsSync(join(dir, 'bench-data.json')), false)
+  assert.deepEqual(await readdir(dir), [])
+})
+
+test("bench CLI rejects unknown flags and missing values without starting a benchmark", async t => {
+  const dir = await mkdtemp(join(tmpdir(), "hw-bench-usage-"))
+  let calls = 0
+  const server = createServer((req, res) => { calls++; req.resume(); res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}') })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await rm(dir, { recursive: true, force: true }) })
+  const gateway = 'http://127.0.0.1:' + server.address().port
+  const file = join(dir, 'runs.jsonl'), report = join(dir, 'report.html')
+  const cli = new URL('../bin/bench.js', import.meta.url).pathname
+  const cases = [
+    { args: ['--unknown-flag'], match: /Unknown flag "--unknown-flag"/ },
+    { args: ['--gateway'], match: /Flag "--gateway" needs a value/ },
+    { args: ['--samples'], match: /Flag "--samples" needs a value/ },
+    { args: ['--report'], match: /Flag "--report" needs a value/ },
+    { args: ['--file'], match: /Flag "--file" needs a value/ },
+    { args: ['positional'], match: /Unexpected argument "positional"/ },
+  ]
+  for (const { args, match } of cases) {
+    let failure
+    try {
+      await promisify(execFile)(process.execPath, [cli, ...args, '--gateway', gateway, '--file', file, '--report', report])
+      assert.fail('Expected a usage error for ' + args.join(' '))
+    } catch (error) { failure = error }
+    assert.equal(failure.code, 1)
+    assert.match(failure.stderr, match)
+    assert.match(failure.stderr, /No benchmark was started/)
+  }
+  assert.equal(calls, 0)
+  assert.deepEqual(await readdir(dir), [])
 })
