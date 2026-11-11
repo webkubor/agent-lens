@@ -93,7 +93,7 @@ test("authenticated summary exposes model-filtered supplier reports without chan
 
 
 test("provider UI isolates missing service data, clears stale reports and recovers on the next summary", t => {
-  const ids = ["providerUnavailable", "providerReport", "providerSelect", "providerModel", "providerShare", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons", "providersBlock", "clients"]
+  const ids = ["providerUnavailable", "providerReport", "providerSelect", "providerModel", "providerShare", "providerReportTitle", "providerReportMark", "providerScope", "providerKpis", "providerTable", "providerReasons", "providersBlock", "clients"]
   const nodes = Object.fromEntries(ids.map(id => {
     const node = new EventTarget()
     Object.assign(node, { innerHTML: "", textContent: "", value: "", disabled: false, hidden: false, checked: false })
@@ -109,7 +109,7 @@ test("provider UI isolates missing service data, clears stale reports and recove
     body: { classList: { toggle: (name, enabled) => enabled ? classes.add(name) : classes.delete(name) } },
   })
   t.after(() => { if (original === undefined) delete globalThis.document; else globalThis.document = original })
-  const ui = providerView({ T: key => translate("en", key), esc: String, int: String, pct: String, locale: "en", onModelChange() {} })
+  const ui = providerView({ T: key => translate("en", key), esc: String, int: String, pct: String, locale: "en", mark: () => '<span class="mark"></span>', onModelChange() {} })
   const summary = { since: 50, generatedAt: 200, agents: [{ agent: "claude", name: "Claude Code" }], totals: { calls: 1 } }
   const originalSummary = structuredClone(summary)
   const healthy = { ...summary, providerView: summarize([row()]) }
@@ -130,7 +130,7 @@ test("provider UI isolates missing service data, clears stale reports and recove
   assert.equal(nodes.providerSelect.value, "alpha")
 
   ui.paint(summary)
-  for (const id of ["providerSelect", "providerModel", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons"]) assert.equal(nodes[id].innerHTML, "", id)
+  for (const id of ["providerSelect", "providerModel", "providerReportTitle", "providerReportMark", "providerScope", "providerKpis", "providerTable", "providerReasons"]) assert.equal(nodes[id].innerHTML, "", id)
   assert.deepEqual(summary, originalSummary)
   ui.paint(healthy)
   assert.match(nodes.providerTable.innerHTML, /Claude Code/)

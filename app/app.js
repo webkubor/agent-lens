@@ -481,7 +481,7 @@ function closeDetail() {
   else [...document.querySelectorAll("[data-open-agent]")].find(el => el.dataset.openAgent === closedAgent && el.getClientRects().length)?.focus()
 }
 
-const providers = providerView({ T, esc, int, pct, locale: LOCALE, onModelChange: model => {
+const providers = providerView({ T, esc, int, pct, locale: LOCALE, mark, onModelChange: model => {
   state.providerModel = model
   load()
 } })

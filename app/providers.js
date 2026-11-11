@@ -1,12 +1,21 @@
 import { extrema, extremum } from "./comparison.js"
 
-export function providerView({ T, esc, int, pct, locale, onModelChange }) {
+import { PROVIDER_ICONS } from "./provider-icons.js"
+
+export function providerView({ T, esc, int, pct, locale, mark, onModelChange }) {
   const $ = id => document.getElementById(id)
   const date = t => new Date(t).toLocaleString(locale, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })
   let data, provider = "", agent = "", sharing = false, available = false, reasonsOpen = false
   const name = id => data.agents.find(a => a.agent === id)?.name || id
   const providerName = id => id === "unknown" ? T("providers.unknown") : id
+  let providerOptions = "", modelOptions = ""
+  const richPicker = globalThis.CSS?.supports("appearance", "base-select") ?? false
+  const providerMark = (id, size = 24) => mark({ agent: id, name: providerName(id), icon: PROVIDER_ICONS[id] }, size)
   const option = (value, label) => `<option value="${esc(value)}">${esc(label)}</option>`
+  const providerOption = id => richPicker
+    ? `<option value="${esc(id)}">${providerMark(id)}<span>${esc(providerName(id))}</span></option>`
+    : option(id, providerName(id))
+  const pickerButton = richPicker ? '<button type="button"><selectedcontent></selectedcontent></button>' : ""
   const reasonLabel = r => r.status >= 400 ? `${T(`reason.${r.reason}`)} · HTTP ${r.status}`
     : r.status === 200 ? `${T(`reason.${r.reason}`)} · ${T("providers.midStream")}`
     : `${T(`reason.${r.reason}`)} · ${T("providers.noStatus")}`
@@ -20,6 +29,8 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
     $("providerModel").disabled = !available
     if (!available) {
       provider = agent = ""
+      providerOptions = modelOptions = ""
+      $("providerReportMark").innerHTML = ""
       reasonsOpen = false
       share(false)
       for (const id of ["providerSelect", "providerModel", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons"]) $(id).innerHTML = ""
@@ -27,13 +38,15 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
       $("providerShare").disabled = true
       return
     }
-    $("providerSelect").innerHTML = view.providerOptions.map(id => option(id, providerName(id))).join("")
+    const nextProviders = pickerButton + view.providerOptions.map(providerOption).join("")
+    if (providerOptions !== nextProviders) $("providerSelect").innerHTML = providerOptions = nextProviders
     if (!view.providerOptions.includes(provider)) provider = view.providers[0]?.provider || ""
     $("providerSelect").value = provider
     $("providerSelect").disabled = !view.providerOptions.length
-    $("providerModel").innerHTML = option("", T("providers.allModels")) + view.models.map(m => option(m, m)).join("")
     // Preserve a selected model across an empty period so the empty state is explicit.
-    if (view.model && !view.models.includes(view.model)) $("providerModel").insertAdjacentHTML("beforeend", option(view.model, view.model))
+    const models = view.model && !view.models.includes(view.model) ? [...view.models, view.model] : view.models
+    const nextModels = pickerButton + option("", T("providers.allModels")) + models.map(m => option(m, m)).join("")
+    if (modelOptions !== nextModels) $("providerModel").innerHTML = modelOptions = nextModels
     $("providerModel").value = view.model
     render()
   }
@@ -43,12 +56,14 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
     const focusedAgent = focused?.dataset.providerAgent
     const focusedReason = focused?.id === "providerAll" || focused?.matches("#providerReasonDetail > summary")
     const p = data.providerView.providers.find(p => p.provider === provider)
-    $("providerReportTitle").textContent = provider ? `${providerName(provider)} · ${T("providers.report")}` : T("providers.title")
+    $("providerReportTitle").textContent = provider ? providerName(provider) : T("providers.title")
+    $("providerReportMark").innerHTML = provider ? providerMark(provider, 40) : ""
     $("providerScope").textContent = `${date(data.since)} — ${date(data.generatedAt)} · ${data.providerView.model || T("providers.allModels")} · ${$("clients").checked ? T("providers.withClients") : T("providers.agentsOnly")}`
     $("providerKpis").innerHTML = p ? [
-      [T("col.calls"), int(p.calls)], [T("kpi.failed"), int(p.failed)],
-      [T("col.errorRate"), pct(p.errorRate)], [T("providers.cancelled"), int(p.cancelled)],
-    ].map(([label, value]) => `<div><dt>${esc(label)}</dt><dd class="num">${esc(value)}</dd></div>`).join("") : ""
+      [T("col.errorRate"), pct(p.errorRate), "report-primary"],
+      [T("col.calls"), int(p.calls), ""], [T("kpi.failed"), int(p.failed), ""],
+      [T("providers.cancelled"), int(p.cancelled), ""],
+    ].map(([label, value, className]) => `<div class="${className}"><dt>${esc(label)}</dt><dd class="num">${esc(value)}</dd></div>`).join("") : ""
     $("providerShare").disabled = !p
     if (!p) {
       $("providerTable").innerHTML = ""
@@ -59,7 +74,7 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
     const cells = p.harnesses.map(a => {
       const edge = extremum(a.errorRate, ranges.errorRate, "low")
       const top = a.reasons[0]
-      return `<tr><td><button class="provider-agent" aria-controls="providerReasonDetail" data-provider-agent="${esc(a.agent)}" aria-pressed="${agent === a.agent}">${esc(name(a.agent))}</button></td>
+      return `<tr><td><button class="provider-agent" aria-controls="providerReasonDetail" data-provider-agent="${esc(a.agent)}" aria-pressed="${agent === a.agent}">${mark(data.agents.find(row => row.agent === a.agent) || { agent: a.agent, name: name(a.agent) }, 24)}<span>${esc(name(a.agent))}</span></button></td>
         <td class="n">${int(a.calls)}</td><td class="n">${int(a.failed)}</td>
         <td class="n ${edge ? `metric-${edge.quality}` : ""}">${pct(a.errorRate)}${edge ? `<span class="extreme-label">${esc(T(`extreme.${edge.quality}`))}</span>` : ""}</td>
         <td class="n">${int(a.cancelled)}</td><td class="reason-cell">${top ? esc(reasonLabel(top)) : "—"}</td></tr>`

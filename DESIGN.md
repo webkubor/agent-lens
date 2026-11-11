@@ -40,3 +40,14 @@ and sticky row headers retain context. Keep provider screenshot reports intact.
 Reuse existing colors/radius/shadow; add spacing, type and control-height aliases
 for the new compact layouts. Tradeoff: full metric comparison takes one explicit
 view switch, avoiding duplicate agent lists in the default overview.
+
+Decision, 2026-11-11 (provider visual correction): the owner identified tiny
+selectors and missing provider/Harness marks in screenshots. Provider and model
+controls are now 52px high; supported browsers use native customizable selects
+with branded options and 48px rows, other browsers retain native text selects.
+Reuse existing licensed marks (embedded data URLs for the host sandbox), never
+assign a known provider logo to an unrecognised gateway alias. Show the selected
+brand in the report header and preserve the agent marks already provided by the
+summary. Promote failure rate as the report's primary metric without inventing
+thresholds or changing its calculation. Keep counts, cancellations, period and
+source notes visible. Mobile stacks the controls and pairs report metrics.

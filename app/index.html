@@ -66,14 +66,14 @@
     </div>
     <p id="providerUnavailable" class="empty-note" role="status" data-t="providers.serviceReload" hidden></p>
     <div class="provider-controls">
-      <label><span data-t="providers.provider"></span><select id="providerSelect"></select></label>
-      <label><span data-t="providers.model"></span><select id="providerModel"></select></label>
+      <label><span data-t="providers.provider"></span><select id="providerSelect" name="provider"></select></label>
+      <label><span data-t="providers.model"></span><select id="providerModel" name="model"></select></label>
       <button class="pill" id="providerShare" aria-pressed="false" data-t="providers.share"></button>
     </div>
     <div id="providerReport" class="provider-report">
       <header class="report-head">
         <div class="report-brand">HarnessWeight <span data-t="providers.observed"></span></div>
-        <h2 id="providerReportTitle"></h2>
+        <div class="report-identity"><span id="providerReportMark" class="report-logo" aria-hidden="true"></span><div><p class="report-eyebrow" data-t="providers.report"></p><h2 id="providerReportTitle"></h2></div></div>
         <p class="hint" id="providerScope"></p>
       </header>
       <dl class="report-stats" id="providerKpis"></dl>
