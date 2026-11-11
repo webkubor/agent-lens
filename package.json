@@ -5,6 +5,7 @@
   "type": "module",
   "files": [
     "index.mjs",
+    "bin",
     "harnessweight.hooks.mjs",
     "service.mjs",
     "lib",
@@ -59,7 +60,8 @@
   "main": "./index.mjs",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "dev": "node service.mjs"
+    "dev": "node service.mjs",
+    "bench": "node bin/bench.js"
   },
   "repository": {
     "type": "git",
