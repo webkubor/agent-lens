@@ -109,6 +109,14 @@ Harness 卡片、总览表和详情会显示任务平均完成时间，以及旁
 - **空态**：“未接入或本周期无任务数据”表示没有观测到该窗口的任务边界，不能仅凭它断言 hook 没安装；“无有效完成样本”表示有任务事件但没有可计入的成功任务。两者均显示 `—` 和 0 个有效完成任务，API 平均值为 `null`。没有网关请求的 Harness 仍可展示任务遥测。
 - **保存范围**：本机 `tasks.jsonl` 及上一代轮转日志，最多保留 30 天，两个日志总计最多约 16 MiB。容量轮转也可能提前丢失边界，因此这是已观测完整样本的均值，不保证所有任务都被采集。不会回填历史使用日志。
 
+### Codex 自动读取
+
+自动只读 `~/.codex/sessions/` 的 `rollout-*.jsonl`，不安装 hook、不修改 Codex 日志，也不保存提示词或响应。只计入可核实为用户主会话、触发来源为 `user` 或 `composer`，且有 `task_started` 和无错误 `task_complete` 的 turn；子 agent、自动触发、未知来源、中止和未完成 turn 均排除。样本单位是用户 turn，不能证明包含提交前排队时间，也不代表用户目标完成。
+
+优先采用 Codex 的 `duration_ms`；缺失时使用同一 turn 的 `started_at` / `completed_at` 秒级差值，API 的 `precision` 给出精度计数。按秒级 `completed_at` 归入周期，不用外层日志写入时间；周期边界的时间精度为秒。历史回放按原 turn 去重，冲突边界或任一失败记录排除整个 turn；合成导入 ID 按 session 区分。需要可核验的会话来源和 turn 归因，旧版或导入日志缺失这些字段时不计入，因此覆盖并非完整历史。读取器按文件增量读取，定期发现文件，并合并并发页面的读取。损坏 JSONL、过长单行（超过 8 MiB）或权限等读取错误会令 Codex 任务计时显示暂不可用；API 的 `sources.codexReadIssues` 仅记录错误种类和数量，其他指标继续显示。不保存或返回错误正文。24 小时、7 天和 30 天均为从当前时刻向前的滚动窗口，页面日期使用本地时区。
+
+2026-11-11 真实本机验证：近 7 天共 53 个有效用户 turn，平均 655,763 ms（约 10 分 56 秒）。[总览截图](docs/task-duration/codex-real-local-7d.png)与[详情截图](docs/task-duration/codex-real-local-detail.png)均标注真实来源和排除口径；[验证记录](docs/task-duration/validation.json)的 `codexRealLocalReview` 保存三周期数值。截图服务仅读取本机 Codex 日志，其余日志源隔离为空，未向用户日志写入样本。
+
 ### Cursor 可选接入
 
 当前提供 Cursor 的 `beforeSubmitPrompt` → `stop` 适配器，依据 [Cursor 官方 hook 规范](https://cursor.com/docs/hooks)；按 `conversation_id` + `generation_id` 关联一次执行周期。只有 `status=completed` 计入，`aborted` / `error` 排除；自动续跑 `loop_count>0` 的终止信号标为不明确并排除。时间取本地命令实际观测 hook 的时间，包含命令调度误差。不会通过 SessionStart/SessionEnd 或空闲间隔猜测任务结束。
@@ -132,7 +140,7 @@ node bin/task-event.js \
 
 ### 其他 Harness 与 API
 
-Claude Code、Codex、Grok 等尚未提供内置任务生命周期适配器；这不代表它们没有 hook 能力。通用 `task-events-v1` 协议可以由已核实的真实生命周期接入：
+Claude Code、Grok 等尚未提供内置任务生命周期适配器；这不代表它们没有 hook 能力。通用 `task-events-v1` 协议可以由已核实的真实生命周期接入：
 
 ```json
 {"version":1,"agent":"gateway-agent-id","runId":"unique-execution-id","taskId":"unique-task-id","event":"started","atMs":1794391200000}

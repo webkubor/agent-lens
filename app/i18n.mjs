@@ -34,6 +34,7 @@ const en = {
   "task.unavailable": "Task timing is unavailable",
   "detail.taskTitle": "How long does a complete task take?",
   "detail.taskNote": "Mean from task start to completion, including tools and waits. Counts tasks completed in this period; unfinished, failed or cancelled tasks are excluded. Tasks may differ in complexity.",
+  "detail.codexTaskSource": "Source: local Codex rollout logs. Samples are user turns; pre-submission queue time is not verified as included. Millisecond precision: {ms}; second-precision fallback: {sec}. Windows roll back from now; displayed dates use your local time zone.",
   "explain.taskDuration.title": "Average task completion time",
   "explain.taskDuration.body": "Total elapsed time of valid completed tasks divided by their count. Tasks are selected by completion time, and each retains its full duration. Lower is green, higher is red; missing samples are not ranked.",
 
@@ -85,7 +86,7 @@ const en = {
   "status.loading": "Loading…",
   "header.sub": "Behind one gateway: how many tokens each agent harness reads, how many hit the cache, how many calls fail, and how heavy the tool definitions it resends every turn are.",
   "aria.periods": "Period",
-  "period.today": "Today",
+  "period.today": "Last 24 hours",
   "period.7d": "7 days",
   "period.30d": "30 days",
   "clients.toggle": "Include scripts and internal requests",
@@ -285,6 +286,7 @@ const zh = {
   "task.unavailable": "任务计时暂不可用",
   "detail.taskTitle": "完整任务需要多长时间？",
   "detail.taskNote": "从任务开始到完成的平均耗时，包含工具执行与等待。按完成时间归入周期；未完成、失败或取消任务不计入。各任务复杂度可能不同。",
+  "detail.codexTaskSource": "来源：本机 Codex rollout 日志。样本单位为用户 turn；尚未证实包含提交前排队时间。毫秒精度：{ms} 条；秒级回退：{sec} 条。周期从当前时间向前滚动，日期按本地时区显示。",
   "explain.taskDuration.title": "任务平均完成时间",
   "explain.taskDuration.body": "有效完成任务的总耗时除以任务数。按完成时间筛选，每项保留完整耗时。较低为绿、较高为红，缺失样本不参与排名。",
 
@@ -336,7 +338,7 @@ const zh = {
   "status.loading": "正在读取…",
   "header.sub": "同一个网关后面，每个 agent harness 读了多少 token、命中多少缓存、失败多少次、每轮重发多重的工具定义。",
   "aria.periods": "统计周期",
-  "period.today": "今天",
+  "period.today": "近 24 小时",
   "period.7d": "7 天",
   "period.30d": "30 天",
   "clients.toggle": "含脚本和内部请求",

@@ -293,5 +293,65 @@
     "taskDurationPresent": false,
     "agentCount": 9,
     "backendReloaded": false
+  },
+  "codexRealLocalReview": {
+    "checkedAt": "2026-11-11T11:31:49.810Z",
+    "source": "Real local Codex ~/.codex/sessions rollout JSONL; read only",
+    "scope": "User source cli/vscode, user/composer root turn_attribution, task_started + successful task_complete; errors, aborted, incomplete, automatic/agent and unattributed turns excluded; replay conflicts excluded",
+    "periodPolicy": "Rolling windows by original completed_at in Unix seconds; complete duration_ms in milliseconds with seconds fallback; dates displayed in browser local timezone",
+    "periods": [
+      {
+        "period": "24h",
+        "samples": 10,
+        "averageMs": 2063861.8,
+        "totalMs": 20638618,
+        "precision": {
+          "millisecond": 10,
+          "second": 0
+        },
+        "since": 1794310309807,
+        "until": 1794396709807
+      },
+      {
+        "period": "7d",
+        "samples": 53,
+        "averageMs": 655763.2452830189,
+        "totalMs": 34755452,
+        "precision": {
+          "millisecond": 53,
+          "second": 0
+        },
+        "since": 1793791909808,
+        "until": 1794396709808
+      },
+      {
+        "period": "30d",
+        "samples": 91,
+        "averageMs": 570557.6923076923,
+        "totalMs": 51920750,
+        "precision": {
+          "millisecond": 91,
+          "second": 0
+        },
+        "since": 1791804709808,
+        "until": 1794396709808
+      }
+    ],
+    "preview": "http://127.0.0.1:54965",
+    "otherLogs": "Isolated empty paths; no fabricated task or gateway log records",
+    "screenshots": [
+      "codex-real-local-7d.png",
+      "codex-real-local-detail.png"
+    ],
+    "screenshotAnnotation": "An evidence banner was added to the page DOM only; data and metric values were not changed",
+    "tests": {
+      "command": "npm test",
+      "passed": 107,
+      "failed": 0
+    },
+    "live3496": {
+      "taskTimingPresent": false,
+      "backendReloaded": false
+    }
   }
 }
