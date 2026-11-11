@@ -2,9 +2,13 @@
 export const DIRECTIONS = {
   calls: "neutral", prompt: "low", avgPrompt: "low", cacheRate: "high",
   fullPrice: "low", out: "neutral", errorRate: "low", p50ttft: "low",
-  p50ms: "low", toolTokens: "low", session: "neutral",
+  p50ms: "low", taskDuration: "low", toolTokens: "low", session: "neutral",
 }
 export function metricValue(row, key) {
+  if (key === "taskDuration") {
+    const t = row.taskDuration
+    return t?.available && t.samples > 0 && Number.isFinite(t.averageMs) && t.averageMs >= 0 ? t.averageMs : null
+  }
   if (key === "toolTokens") return row.tools?.avgTokens ?? null
   if (key === "session") return row.session?.measured ? row.session.median : null
   if (key === "cacheRate" && !row.prompt) return null

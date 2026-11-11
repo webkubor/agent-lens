@@ -99,6 +99,49 @@ magpie usage.jsonl ─────────────┐
 
 数据只在本机读取，不上传，没有遥测。本地服务只监听 127.0.0.1，并且：每次启动生成随机口令，只写进界面 HTML（该 HTML 不带 CORS 头，其他网页读不到），所有 `/api/` 请求都要带上它；校验 Host（防 DNS 重绑定）和 Origin；只接受 GET。hook 写下的每一行只有名字和数字；测试里专门断言了提示词内容不会落盘。
 
+## 任务平均完成时间
+
+Harness 卡片、总览表和详情会显示任务平均完成时间，以及旁边的**有效完成任务数**。较低值为绿色，较高值为红色；只有一个有效值、全部并列或没有有效样本时不标极值。不同任务的复杂度可能不同，这个均值不是统一题目的性能跑分。
+
+- **任务边界**：一次用户提示触发的执行周期，从开始信号到成功完成信号，包含期间的模型请求、工具执行和等待。它不代表业务验收，也不等于单次 HTTP/LLM 响应或会话总寿命。
+- **计算方式**：有效完成任务的完整墙钟耗时之和 ÷ 有效完成任务数。重复事件去重，并行任务按独立关联 ID 隔离；未完成、失败、取消、缺失开始或结束、时间倒置及冲突事件不计入平均值。
+- **周期**：按任务完成时间归入所选窗口。沿用页面现有口径：“今天”为过去 24 小时，7 天/30 天为滚动窗口；跨窗口开始、窗口内完成的任务保留完整耗时。
+- **空态**：“未接入或本周期无任务数据”表示没有观测到该窗口的任务边界，不能仅凭它断言 hook 没安装；“无有效完成样本”表示有任务事件但没有可计入的成功任务。两者均显示 `—` 和 0 个有效完成任务，API 平均值为 `null`。没有网关请求的 Harness 仍可展示任务遥测。
+- **保存范围**：本机 `tasks.jsonl` 及上一代轮转日志，最多保留 30 天，两个日志总计最多约 16 MiB。容量轮转也可能提前丢失边界，因此这是已观测完整样本的均值，不保证所有任务都被采集。不会回填历史使用日志。
+
+### Cursor 可选接入
+
+当前提供 Cursor 的 `beforeSubmitPrompt` → `stop` 适配器，依据 [Cursor 官方 hook 规范](https://cursor.com/docs/hooks)；按 `conversation_id` + `generation_id` 关联一次执行周期。只有 `status=completed` 计入，`aborted` / `error` 排除；自动续跑 `loop_count>0` 的终止信号标为不明确并排除。时间取本地命令实际观测 hook 的时间，包含命令调度误差。不会通过 SessionStart/SessionEnd 或空闲间隔猜测任务结束。
+
+安装 HarnessWeight **不会自动修改 Cursor 配置**。先确认目标 Cursor 版本支持这些 hook，并核对它在 Magpie 中的实际 agent ID，以及 HarnessWeight 正在使用的 `dataDir`。不能把 CLI 可执行文件名直接当成网关 ID。没有可核实的 ID 时应保留未接入状态。
+
+采集命令位于安装包的 `bin/task-event.js`。它也提供只读配置预览：读取现有 JSON，保留其他事件、命令和字段，幂等追加开始/结束命令，输出合并后的配置；不会安装或写回配置。示例中的三个变量需先填写实际值：
+
+```bash
+# 在最终安装的 HarnessWeight 目录执行；不要使用稍后会删除的临时 worktree 路径。
+node bin/task-event.js \
+  --print-cursor-config "$CURSOR_PROJECT_DIR/.cursor/hooks.json" \
+  --agent "$CURSOR_GATEWAY_ID" \
+  --data-dir "$HARNESSWEIGHT_DATA_DIR" \
+  > /tmp/harnessweight-cursor-hooks.review.json
+```
+
+审阅预览后，将新增 hook 与目标配置合并；**不要把标准输出直接重定向覆盖输入的 hooks.json**。优先明确目标项目范围；用户级或受管 hook 会影响其他任务，应由用户决定。预览使用绝对 Node 和脚本路径，安装位置变化后需重新生成。停止 hook 的 `loop_limit: null` 确保续跑事件也能被观测，采集器本身不请求续跑。已有 hook、异步设置、插件与自动续跑策略仍需结合实际环境确认。
+
+正常 hook 执行无标准输出，采集失败会跳过并保持任务运行；不保存提示词、响应、文件路径或原始会话 ID，只记录哈希关联键、阶段和时间。服务或采集命令重启后仍可读取已落盘边界；新执行不能重用旧任务 ID。启用后等待自然发生的真实用户任务验证，不需要为指标触发付费测试任务。
+
+### 其他 Harness 与 API
+
+Claude Code、Codex、Grok 等尚未提供内置任务生命周期适配器；这不代表它们没有 hook 能力。通用 `task-events-v1` 协议可以由已核实的真实生命周期接入：
+
+```json
+{"version":1,"agent":"gateway-agent-id","runId":"unique-execution-id","taskId":"unique-task-id","event":"started","atMs":1794391200000}
+```
+
+向 `node bin/task-event.js --source protocol --data-dir /absolute/data/path` 的标准输入发送该结构；阶段为 `started`、`completed`、`failed`、`cancelled`。`atMs` 必须是原始事件的 Unix 毫秒时间；重试保留原 ID 与原时间戳，新执行使用新 `runId`，同一执行中的每个任务使用不同 `taskId`。只有确为同一任务的恢复执行才可继续用原 ID。每个执行周期使用一种采集来源，避免人为重复接入。不能把网关请求开始/结束事件映射为任务。
+
+`GET /api/summary` 的 `agents[].taskDuration` 提供 `averageMs`、`totalMs`、`samples`、`available`、`coverage`、`reason`、`sources` 与 `excluded`。顶层 `taskTiming` 给出执行周期边界、按完成时间筛选的口径、实际时间窗口、保留限制和支持的适配器。没有有效完成样本时 `averageMs` / `totalMs` 为 `null`；采集文件读取失败单独降级为 `reason=read-error`，不影响请求指标。
+
 ## 开发
 
 ```sh

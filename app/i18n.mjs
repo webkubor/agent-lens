@@ -24,6 +24,19 @@ export function languageFor(value = "") {
 }
 
 const en = {
+  "col.taskDuration": "Avg task completion",
+  "task.samples": "{count} completed tasks",
+  "task.completed": "Valid completed tasks",
+  "task.total": "Total completion time",
+  "task.noData": "Not connected, or no task data in this period",
+  "task.noCompleted": "No valid completed tasks",
+  "task.readError": "Task data cannot be read right now",
+  "task.unavailable": "Task timing is unavailable",
+  "detail.taskTitle": "How long does a complete task take?",
+  "detail.taskNote": "Mean from task start to completion, including tools and waits. Counts tasks completed in this period; unfinished, failed or cancelled tasks are excluded. Tasks may differ in complexity.",
+  "explain.taskDuration.title": "Average task completion time",
+  "explain.taskDuration.body": "Total elapsed time of valid completed tasks divided by their count. Tasks are selected by completion time, and each retains its full duration. Lower is green, higher is red; missing samples are not ranked.",
+
   "reason.stream": "Connection lost mid-reply",
   "reason.emptyReply": "Empty reply",
   "reason.replyLoop": "Reply loop ended",
@@ -262,6 +275,19 @@ const en = {
 }
 
 const zh = {
+  "col.taskDuration": "任务平均完成时间",
+  "task.samples": "{count} 个有效完成任务",
+  "task.completed": "有效完成任务数",
+  "task.total": "累计完成耗时",
+  "task.noData": "未接入或本周期无任务数据",
+  "task.noCompleted": "无有效完成样本",
+  "task.readError": "任务数据暂不可读",
+  "task.unavailable": "任务计时暂不可用",
+  "detail.taskTitle": "完整任务需要多长时间？",
+  "detail.taskNote": "从任务开始到完成的平均耗时，包含工具执行与等待。按完成时间归入周期；未完成、失败或取消任务不计入。各任务复杂度可能不同。",
+  "explain.taskDuration.title": "任务平均完成时间",
+  "explain.taskDuration.body": "有效完成任务的总耗时除以任务数。按完成时间筛选，每项保留完整耗时。较低为绿、较高为红，缺失样本不参与排名。",
+
   "reason.stream": "回复中途连接断开",
   "reason.emptyReply": "模型返回空回复",
   "reason.replyLoop": "回复循环被中断",

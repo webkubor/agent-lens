@@ -66,6 +66,21 @@ function dur(ms) {
   if (h < 24) return `${h.toFixed(1)}${esc(T("dur.hour"))}`
   return `${(h / 24).toFixed(1)}${esc(T("dur.day"))}`
 }
+function taskEmpty(a) {
+  const t = a.taskDuration
+  if (!t) return T("task.unavailable")
+  if (t.reason === "read-error") return T("task.readError")
+  return T(t.coverage === "observed" ? "task.noCompleted" : "task.noData")
+}
+function taskSamples(a) {
+  return T("task.samples", { count: int(a.taskDuration?.samples ?? 0) })
+}
+function taskValue(a, ranges) {
+  const value = metricValue(a, "taskDuration")
+  const edge = extremum(value, ranges.taskDuration, DIRECTIONS.taskDuration)
+  return `<b class="num"${edge ? ` style="color:var(--${edge.quality})"` : ""}>${dur(value)}</b>`
+}
+
 function when(at) {
   if (!at) return "—"
   return new Date(at).toLocaleString(LOCALE, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
@@ -255,6 +270,7 @@ function paintKpis(d) {
 }
 
 function paintCards(d) {
+  const ranges = extrema(d.agents)
   const max = Math.max(...d.agents.map((a) => a.prompt), 1)
   const sorted = [...d.agents].sort((x, y) => cardVal(y, state.cardSort) - cardVal(x, state.cardSort))
   $("cards").innerHTML = sorted
@@ -274,6 +290,7 @@ function paintCards(d) {
           <div><b class="num ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(a.errorRate)}</b>${tip("errorRate", esc(T("col.errorRate")))}</div>
         </div>
         ${proto ? `<div class="card-foot"><span class="proto" title="${esc(proto)}">${esc(proto)}</span>${a.session?.median ? `<span class="dur" title="${esc(T("card.sessionMedianTitle"))}">${dur(a.session.median)}</span>` : ""}</div>` : ""}
+        <div class="card-foot" data-task-duration><span>${esc(T("col.taskDuration"))} ${taskValue(a, ranges)} · ${esc(taskSamples(a))}${metricValue(a, "taskDuration") === null ? `<br>${esc(taskEmpty(a))}` : ""}</span></div>
         ${spark(a.series, "prompt")}
       </div>`
     })
@@ -281,6 +298,7 @@ function paintCards(d) {
 }
 
 const val = (a, k) => {
+  if (k === "taskDuration") return metricValue(a, k)
   if (k === "toolTokens") return a.tools?.avgTokens ?? -1
   if (k === "agent") return a.name || a.agent
   if (k === "protocol") return a.protocols?.[0]?.name || ""
@@ -288,7 +306,7 @@ const val = (a, k) => {
   return a[k]
 }
 
-const cardVal = (a, k) => (k === "toolTokens" ? a.tools?.avgTokens ?? -1 : a[k] ?? -1)
+const cardVal = (a, k) => (k === "taskDuration" ? metricValue(a, k) ?? -1 : k === "toolTokens" ? a.tools?.avgTokens ?? -1 : a[k] ?? -1)
 
 function paintCardSort() {
   const box = $("cardSort")
@@ -300,7 +318,8 @@ function paintCardSort() {
 function metricCell(a, key, formatted, ranges) {
   const value = metricValue(a, key)
   const edge = extremum(value, ranges[key], DIRECTIONS[key])
-  return `<td class="n ${edge ? `metric-${edge.quality}` : ""}" data-metric="${key}">${value === null ? "—" : formatted}${edge ? `<span class="extreme-label" title="${esc(T(`extreme.${edge.edge}`))}">${esc(T(`extreme.${edge.quality}`))}</span>` : ""}</td>`
+  const note = key === "taskDuration" ? `<span class="extreme-label">${esc(taskSamples(a))}</span>${value === null ? `<span class="extreme-label">${esc(taskEmpty(a))}</span>` : ""}` : ""
+  return `<td class="n ${edge ? `metric-${edge.quality}` : ""}" data-metric="${key}">${value === null ? "—" : formatted}${note}${edge ? `<span class="extreme-label" title="${esc(T(`extreme.${edge.edge}`))}">${esc(T(`extreme.${edge.quality}`))}</span>` : ""}</td>`
 }
 
 function paintTable(d) {
@@ -308,6 +327,7 @@ function paintTable(d) {
   const { key, dir } = state.sort
   const rows = [...d.agents].sort((x, y) => {
     const a = val(x, key), b = val(y, key)
+    if (key === "taskDuration" && (a === null || b === null)) return a === b ? 0 : a === null ? 1 : -1
     return typeof a === "string" ? a.localeCompare(b) * dir : ((a ?? 0) - (b ?? 0)) * dir
   })
   const topAgent = d.agents[0]?.agent
@@ -315,6 +335,7 @@ function paintTable(d) {
   const body = rows
     .map((a) => `<tr tabindex="0" data-agent="${esc(a.agent)}">
       <td class="agent"><span class="who">${mark(a, 18)}${label(a)}${a.agent === topAgent && d.agents.length > 1 ? `<span class="dot hot" title="${esc(T("table.topSpenderTitle"))}"></span>` : ""}</span></td>
+      ${metricCell(a, "taskDuration", dur(a.taskDuration?.averageMs), ranges)}
       ${metricCell(a, "calls", int(a.calls), ranges)}
       ${metricCell(a, "prompt", short(a.prompt), ranges)}
       ${metricCell(a, "avgPrompt", short(a.avgPrompt), ranges)}
@@ -371,9 +392,11 @@ function openDetail(agent, focus = true) {
   const toolNames = a.tools?.names || []
   const cache = Math.max(0, Math.min(100, a.cacheRate * 100))
   const failure = a.calls ? a.failed / a.calls : 0
+  const taskRanges = extrema(state.data.agents)
   $("detail").innerHTML = `<div class="detail detail-guide">
-    <header class="detail-heading"><h3 class="who">${mark(a,32)}${label(a)}</h3><p class="hint">${when(a.first)} — ${when(a.last)} · ${esc(T('detail.selectedPeriod'))}</p></header>
+    <header class="detail-heading"><h3 class="who">${mark(a,32)}${label(a)}</h3><p class="hint">${when(a.first ?? state.data.since)} — ${when(a.last ?? state.data.generatedAt)} · ${esc(T('detail.selectedPeriod'))}</p></header>
     <div class="detail-summary"><strong>${esc(T('detail.summaryRequests', { calls: int(a.calls) }))}</strong><p>${esc(T('detail.summaryBody', { avg: short(a.avgPrompt), cache: pct(a.cacheRate), failed: int(a.failed), cancelled: int(a.cancelled) }))}</p><small>${esc(T('detail.summaryNote'))}</small></div>
+    <section class="sec" data-task-duration><h4>${esc(T('detail.taskTitle'))} ${tip('taskDuration')}</h4><div class="detail-metrics"><div><span>${esc(T('col.taskDuration'))}</span>${taskValue(a, taskRanges)}</div><div><span>${esc(T('task.completed'))}</span><b>${int(a.taskDuration?.samples ?? 0)}</b></div><div><span>${esc(T('task.total'))}</span><b>${dur(a.taskDuration?.totalMs)}</b></div></div>${metricValue(a, "taskDuration") === null ? `<p class="empty-note">${esc(taskEmpty(a))}</p>` : ""}<p class="hint">${esc(T('detail.taskNote'))}</p></section>
     <section class="sec"><h4>${esc(T('detail.inputTitle'))} ${tip('prompt')}</h4>
       <div class="detail-metrics"><div><span>${esc(T('detail.totalInput'))}</span><b>${short(a.prompt)}</b></div><div><span>${esc(T('detail.avgInput'))}</span><b>${short(a.avgPrompt)}</b></div><div><span>${esc(T('detail.generatedOutput'))}</span><b>${short(a.out)}</b></div></div>
       ${a.prompt ? `<div class="composition" aria-label="${esc(T('explain.cacheRate.title'))} ${pct(a.cacheRate)}"><span style="width:${cache}%"></span><span style="width:${100-cache}%"></span></div>

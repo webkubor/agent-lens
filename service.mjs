@@ -12,7 +12,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { dirname, join, normalize, sep } from "node:path"
 import { fileURLToPath } from "node:url"
-import { toolsLog, usageLog } from "./lib/paths.mjs"
+import { toolsLog, usageLog, tasksLog } from "./lib/paths.mjs"
 import { createToolsReader } from "./lib/tools.mjs"
 import { createUsageReader } from "./lib/usage.mjs"
 import { summarizeProviders } from "./lib/providers.mjs"
@@ -59,6 +59,7 @@ export function createHandler(options = {}) {
 
   const usage = createUsageReader(usageLog(options))
   const tools = createToolsReader(toolsLog(options))
+  const tasks = createToolsReader(tasksLog(options))
   const brands = createBrands(options)
 
   return async function handle(req, res) {
@@ -88,7 +89,9 @@ export function createHandler(options = {}) {
         return json(res, 200, activity.snapshot(tools.file))
       }
       if (url.pathname === "/api/summary") {
-        await Promise.all([usage.refresh(), tools.refresh(), brands.refresh()])
+        let taskReadError = false
+        await Promise.all([usage.refresh(), tools.refresh(), brands.refresh(),
+          tasks.refresh().catch(() => { taskReadError = true })])
         const period = PERIODS[url.searchParams.get("period")] ? url.searchParams.get("period") : "7d"
         const tz = Number(url.searchParams.get("tz"))
         // the page sends the language it rendered in, so the insights it gets
@@ -97,7 +100,7 @@ export function createHandler(options = {}) {
         const now = Date.now()
         const body = summarize({
           now,
-          usage: usage.rows(), tools: tools.rows(), period,
+          usage: usage.rows(), tools: tools.rows(), tasks: tasks.rows(), taskReadError, period,
           showClients: url.searchParams.get("clients") === "1",
           tzOffsetMin: Number.isFinite(tz) ? tz : 0,
           nameOf: (a) => brands.of(a).name,
@@ -112,7 +115,7 @@ export function createHandler(options = {}) {
           showClients: url.searchParams.get("clients") === "1",
           model: url.searchParams.get("providerModel") || "",
         })
-        body.sources = { usageLog: usage.file, toolsLog: tools.file, usageRows: usage.rows().length, toolRows: tools.rows().length }
+        body.sources = { usageLog: usage.file, toolsLog: tools.file, tasksLog: tasks.file, usageRows: usage.rows().length, toolRows: tools.rows().length, taskRows: taskReadError ? 0 : tasks.rows().length }
         cors()
         return json(res, 200, body)
       }
