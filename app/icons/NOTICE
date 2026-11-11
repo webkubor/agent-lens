@@ -18,3 +18,9 @@ whose src/icons.js maps 智谱 ZCode and 火山方舟 to these assets; its
 src/mapping.js identifies the ZCode provider as zcode. This is the ZCode
 provider mark, distinct from the unrelated Zoo Code agent mark zoo-code.png.
 The upstream NOTICE attributes these assets to magpie and LobeHub (MIT).
+
+OpenRouter, Cloudflare, Vercel, TypeSafe and magpie built-in provider marks were
+copied unchanged from magpie internal/gui/assets/icons (MIT):
+https://github.com/yetone/magpie/tree/main/internal/gui/assets/icons
+Custom provider icons are loaded only from the user's local magpie icon
+store at runtime; they are not bundled or copied into this repository.

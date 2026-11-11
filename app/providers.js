@@ -7,10 +7,11 @@ export function providerView({ T, esc, int, pct, locale, mark, onModelChange }) 
   const date = t => new Date(t).toLocaleString(locale, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })
   let data, provider = "", agent = "", sharing = false, available = false, reasonsOpen = false
   const name = id => data.agents.find(a => a.agent === id)?.name || id
-  const providerName = id => id === "unknown" ? T("providers.unknown") : id
+  const providerBrand = id => Object.hasOwn(data?.providerView?.brands || {}, id) ? data.providerView.brands[id] : {}
+  const providerName = id => id === "unknown" ? T("providers.unknown") : providerBrand(id).name || id
   let modelOptions = "", expanded = false
   const richPicker = globalThis.CSS?.supports("appearance", "base-select") ?? false
-  const providerMark = (id, size = 24) => mark({ agent: id, name: providerName(id), icon: PROVIDER_ICONS[id] }, size)
+  const providerMark = (id, size = 24) => mark({ agent: id, name: providerName(id), icon: providerBrand(id).icon || PROVIDER_ICONS[id] }, size)
   const rate = value => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "—"
   const option = (value, label) => `<option value="${esc(value)}">${esc(label)}</option>`
   const pickerButton = richPicker ? '<button type="button"><selectedcontent></selectedcontent></button>' : ""

@@ -109,7 +109,8 @@ test("provider UI isolates missing service data, clears stale reports and recove
     body: { classList: { toggle: (name, enabled) => enabled ? classes.add(name) : classes.delete(name) } },
   })
   t.after(() => { if (original === undefined) delete globalThis.document; else globalThis.document = original })
-  const ui = providerView({ T: key => translate("en", key), esc: String, int: String, pct: String, locale: "en", mark: () => '<span class="mark"></span>', onModelChange() {} })
+  const renderedMarks = []
+  const ui = providerView({ T: key => translate("en", key), esc: String, int: String, pct: String, locale: "en", mark: info => { renderedMarks.push(info); return '<span class="mark"></span>' }, onModelChange() {} })
   const summary = { since: 50, generatedAt: 200, agents: [{ agent: "claude", name: "Claude Code" }], totals: { calls: 1 } }
   const originalSummary = structuredClone(summary)
   const healthy = { ...summary, providerView: summarize([row()]) }
@@ -132,6 +133,17 @@ test("provider UI isolates missing service data, clears stale reports and recove
   assert.match(nodes.providerHarnesses.innerHTML, /Claude Code/)
   assert.match(nodes.providerKpis.innerHTML, /Observed Harnesses/)
   assert.equal(nodes.providerPicker.hidden, false)
+
+  const customIcon = "data:image/svg+xml;base64,PHN2Zy8+"
+  const branded = summarize([row({ provider: "codex" })])
+  branded.brands = { codex: { name: "My provider label", icon: customIcon } }
+  renderedMarks.length = 0
+  ui.paint({ ...summary, providerView: branded })
+  assert.equal(nodes.providerReportTitle.textContent, "My provider label")
+  assert.ok(renderedMarks.some(info => info.agent === "codex" && info.icon === customIcon), "host icon must override the bundled provider mark")
+  assert.match(nodes.providerGallery.innerHTML, /My provider label/)
+  ui.paint(healthy)
+  assert.equal(nodes.providerReportTitle.textContent, "alpha", "older summaries without brands retain fallback labels")
 
   ui.paint(summary)
   for (const id of ["providerGallery", "providerHarnesses", "providerModel", "providerReportTitle", "providerReportMark", "providerScope", "providerKpis", "providerTable", "providerReasons"]) assert.equal(nodes[id].innerHTML, "", id)

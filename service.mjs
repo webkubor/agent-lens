@@ -19,6 +19,7 @@ import { createUsageReader } from "./lib/usage.mjs"
 import { summarizeProviders } from "./lib/providers.mjs"
 import { PERIODS, summarize } from "./lib/summarize.mjs"
 import { createBrands } from "./lib/brands.mjs"
+import { createProviderBrands } from "./lib/provider-brands.mjs"
 import { activity } from "./lib/activity.mjs"
 // the same table the page imports, so both sides speak one language
 import { pageLanguage, languageTags } from "./app/i18n.mjs"
@@ -63,6 +64,7 @@ export function createHandler(options = {}) {
   const tasks = createToolsReader(tasksLog(options))
   const codex = createCodexReader(options)
   const brands = createBrands(options)
+  const providerBrands = createProviderBrands(options)
 
   return async function handle(req, res) {
     const url = new URL(req.url ?? "/", "http://127.0.0.1")
@@ -118,6 +120,7 @@ export function createHandler(options = {}) {
           showClients: url.searchParams.get("clients") === "1",
           model: url.searchParams.get("providerModel") || "",
         })
+        body.providerView.brands = await providerBrands(body.providerView.providerOptions)
         body.sources = { usageLog: usage.file, toolsLog: tools.file, tasksLog: tasks.file, usageRows: usage.rows().length, toolRows: tools.rows().length, taskRows: taskReadError ? 0 : tasks.rows().length, codexRows: codex.rows().length, codexReadError, codexReadIssues: codex.issues() }
         cors()
         return json(res, 200, body)
