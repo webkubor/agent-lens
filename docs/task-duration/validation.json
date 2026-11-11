@@ -1,0 +1,297 @@
+{
+  "codeCommit": "6074709",
+  "capturedAt": "2026-11-11T10:40:22.219Z",
+  "dataCoverage": "Actual nine Harness have no lifecycle telemetry; fixture values are isolated test data, never production measurements.",
+  "fixture": {
+    "initial": [
+      {
+        "agent": "fixture-unconnected",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-pending",
+        "text": "—\n0 个有效完成任务\n无有效完成样本",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-slow",
+        "text": "10分\n2 个有效完成任务\n最差",
+        "classes": "n metric-worst"
+      },
+      {
+        "agent": "fixture-fast",
+        "text": "3分\n2 个有效完成任务",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-telemetry-only",
+        "text": "1分\n1 个有效完成任务\n最优",
+        "classes": "n metric-best"
+      }
+    ],
+    "descending": [
+      {
+        "agent": "fixture-slow",
+        "text": "10分\n2 个有效完成任务\n最差",
+        "classes": "n metric-worst"
+      },
+      {
+        "agent": "fixture-fast",
+        "text": "3分\n2 个有效完成任务",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-telemetry-only",
+        "text": "1分\n1 个有效完成任务\n最优",
+        "classes": "n metric-best"
+      },
+      {
+        "agent": "fixture-unconnected",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-pending",
+        "text": "—\n0 个有效完成任务\n无有效完成样本",
+        "classes": "n "
+      }
+    ],
+    "ascending": [
+      {
+        "agent": "fixture-telemetry-only",
+        "text": "1分\n1 个有效完成任务\n最优",
+        "classes": "n metric-best"
+      },
+      {
+        "agent": "fixture-fast",
+        "text": "3分\n2 个有效完成任务",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-slow",
+        "text": "10分\n2 个有效完成任务\n最差",
+        "classes": "n metric-worst"
+      },
+      {
+        "agent": "fixture-unconnected",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-pending",
+        "text": "—\n0 个有效完成任务\n无有效完成样本",
+        "classes": "n "
+      }
+    ],
+    "cards": [
+      "fixture-slow",
+      "fixture-fast",
+      "fixture-telemetry-only",
+      "fixture-unconnected",
+      "fixture-pending"
+    ],
+    "detail": "完整任务需要多长时间？ \n任务平均完成时间\n3分\n有效完成任务数\n2\n累计完成耗时\n6分\n\n从任务开始到完成的平均耗时，包含工具执行与等待。按完成时间归入周期；未完成、失败或取消任务不计入。各任务复杂度可能不同。",
+    "thirtyDays": [
+      {
+        "agent": "fixture-telemetry-only",
+        "text": "1分\n1 个有效完成任务\n最优",
+        "classes": "n metric-best"
+      },
+      {
+        "agent": "fixture-slow",
+        "text": "10分\n2 个有效完成任务",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-fast",
+        "text": "12分\n3 个有效完成任务\n最差",
+        "classes": "n metric-worst"
+      },
+      {
+        "agent": "fixture-unconnected",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-pending",
+        "text": "—\n0 个有效完成任务\n无有效完成样本",
+        "classes": "n "
+      }
+    ],
+    "today": [
+      {
+        "agent": "fixture-telemetry-only",
+        "text": "1分\n1 个有效完成任务\n最优",
+        "classes": "n metric-best"
+      },
+      {
+        "agent": "fixture-fast",
+        "text": "3分\n2 个有效完成任务",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-slow",
+        "text": "10分\n2 个有效完成任务\n最差",
+        "classes": "n metric-worst"
+      },
+      {
+        "agent": "fixture-unconnected",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "fixture-pending",
+        "text": "—\n0 个有效完成任务\n无有效完成样本",
+        "classes": "n "
+      }
+    ]
+  },
+  "real": {
+    "empty": [
+      {
+        "agent": "dsh",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "claude",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "codex",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "zcode",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "agy",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "hermes",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "grok",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "mimocode",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      },
+      {
+        "agent": "claude-desktop",
+        "text": "—\n0 个有效完成任务\n未接入或本周期无任务数据",
+        "classes": "n "
+      }
+    ],
+    "api": {
+      "taskTiming": {
+        "version": 1,
+        "unit": "ms",
+        "boundary": "execution-cycle",
+        "periodBasis": "completedAt",
+        "retentionMs": 2592000000,
+        "maxLogBytes": 16777216,
+        "sampling": "observed-completions-only",
+        "adapters": [
+          {
+            "source": "cursor-hooks",
+            "harness": "cursor",
+            "status": "opt-in",
+            "boundary": "generation",
+            "clock": "hook-observed",
+            "start": "beforeSubmitPrompt",
+            "end": "stop",
+            "reference": "https://cursor.com/docs/hooks"
+          }
+        ],
+        "protocol": "task-events-v1",
+        "protocolClock": "event",
+        "gatewayLifecycle": false,
+        "since": 1793788822039,
+        "until": 1794393622039,
+        "readError": false
+      },
+      "taskRows": 0,
+      "agents": [
+        {
+          "agent": "dsh",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "claude",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "codex",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "zcode",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "agy",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "hermes",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "grok",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "mimocode",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        },
+        {
+          "agent": "claude-desktop",
+          "averageMs": null,
+          "samples": 0,
+          "available": false
+        }
+      ]
+    }
+  },
+  "tests": {
+    "command": "npm test",
+    "passed": 98,
+    "failed": 0,
+    "earlierRun": "Existing cross-process latency threshold exceeded once: 2085ms > 1500ms; full rerun without concurrent browser operations passed; threshold unchanged."
+  },
+  "live3496": {
+    "taskTimingPresent": false,
+    "taskDurationPresent": false,
+    "agentCount": 9,
+    "backendReloaded": false
+  }
+}
