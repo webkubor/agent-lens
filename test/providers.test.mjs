@@ -3,6 +3,8 @@ import assert from "node:assert/strict"
 import { parseUsageLine } from "../lib/usage.mjs"
 import { summarizeProviders } from "../lib/providers.mjs"
 import { errorReason } from "../lib/errors.mjs"
+import { providerView } from "../app/providers.js"
+import { translate } from "../app/i18n.mjs"
 
 const row = (values = {}) => parseUsageLine(JSON.stringify({ t: 100, agent: "claude", model: "m1", provider: "alpha", status: 200, ...values }))
 const summarize = (rows, options = {}) => summarizeProviders(rows, { since: 50, now: 200, ...options })
@@ -87,4 +89,63 @@ test("authenticated summary exposes model-filtered supplier reports without chan
     await new Promise(resolve => server.close(resolve))
     await rm(dir, { recursive: true, force: true })
   }
+})
+
+
+test("provider UI isolates missing service data, clears stale reports and recovers on the next summary", t => {
+  const ids = ["providerUnavailable", "providerReport", "providerSelect", "providerModel", "providerShare", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons", "providersBlock", "clients"]
+  const nodes = Object.fromEntries(ids.map(id => {
+    const node = new EventTarget()
+    Object.assign(node, { innerHTML: "", textContent: "", value: "", disabled: false, hidden: false, checked: false })
+    const attributes = new Map()
+    node.setAttribute = (key, value) => attributes.set(key, value)
+    node.getAttribute = key => attributes.get(key)
+    return [id, node]
+  }))
+  const original = globalThis.document
+  const classes = new Set()
+  globalThis.document = Object.assign(new EventTarget(), {
+    getElementById: id => nodes[id] || null,
+    body: { classList: { toggle: (name, enabled) => enabled ? classes.add(name) : classes.delete(name) } },
+  })
+  t.after(() => { if (original === undefined) delete globalThis.document; else globalThis.document = original })
+  const ui = providerView({ T: key => translate("en", key), esc: String, int: String, pct: String, locale: "en", onModelChange() {} })
+  const summary = { since: 50, generatedAt: 200, agents: [{ agent: "claude", name: "Claude Code" }], totals: { calls: 1 } }
+  const originalSummary = structuredClone(summary)
+  const healthy = { ...summary, providerView: summarize([row()]) }
+
+  for (const missing of [undefined, null, {}, { providers: [], models: [] }, { providerOptions: [], providers: [], models: null }]) {
+    ui.paint({ ...summary, providerView: missing })
+    assert.equal(nodes.providerUnavailable.hidden, false)
+    assert.equal(nodes.providerReport.hidden, true)
+    for (const id of ["providerSelect", "providerModel", "providerShare"]) assert.equal(nodes[id].disabled, true, id)
+    nodes.providerShare.dispatchEvent(new Event("click"))
+    assert.equal(ui.isSharing(), false)
+  }
+  ui.paint(healthy)
+  assert.equal(nodes.providerUnavailable.hidden, true)
+  assert.equal(nodes.providerReport.hidden, false)
+  for (const id of ["providerSelect", "providerModel", "providerShare"]) assert.equal(nodes[id].disabled, false, id)
+  assert.match(nodes.providerTable.innerHTML, /Claude Code/)
+  assert.equal(nodes.providerSelect.value, "alpha")
+
+  ui.paint(summary)
+  for (const id of ["providerSelect", "providerModel", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons"]) assert.equal(nodes[id].innerHTML, "", id)
+  assert.deepEqual(summary, originalSummary)
+  ui.paint(healthy)
+  assert.match(nodes.providerTable.innerHTML, /Claude Code/)
+  assert.equal(nodes.providerShare.disabled, false)
+
+  assert.throws(() => ui.paint({
+    ...healthy,
+    providerView: { ...healthy.providerView, providers: [{ ...healthy.providerView.providers[0], harnesses: null }] },
+  }), TypeError, "malformed provider records must not be treated as unavailable service data")
+  assert.equal(nodes.providerUnavailable.hidden, true)
+
+  ui.paint({ ...summary, providerView: summarize([]) })
+  assert.equal(nodes.providerUnavailable.hidden, true)
+  assert.equal(nodes.providerReport.hidden, false)
+  assert.match(nodes.providerReasons.innerHTML, /No requests match/)
+  assert.equal(nodes.providerShare.disabled, true)
+  assert.equal(nodes.providerModel.disabled, false)
 })

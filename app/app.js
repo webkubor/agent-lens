@@ -196,7 +196,6 @@ function spark(series, key, cls = "") {
 function paint() {
   const d = state.data
   $("state").hidden = true
-  $("providerReport").hidden = false
   providers.paint(d)
   if (!d.agents.length) {
     for (const id of ["insights", "kpis", "cards", "tools"]) $(id).innerHTML = ""

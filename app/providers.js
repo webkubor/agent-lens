@@ -3,7 +3,7 @@ import { extrema, extremum } from "./comparison.js"
 export function providerView({ T, esc, int, pct, locale, onModelChange }) {
   const $ = id => document.getElementById(id)
   const date = t => new Date(t).toLocaleString(locale, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })
-  let data, provider = "", agent = "", sharing = false
+  let data, provider = "", agent = "", sharing = false, available = false
   const name = id => data.agents.find(a => a.agent === id)?.name || id
   const providerName = id => id === "unknown" ? T("providers.unknown") : id
   const option = (value, label) => `<option value="${esc(value)}">${esc(label)}</option>`
@@ -14,6 +14,18 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
   function paint(d) {
     data = d
     const view = d.providerView
+    available = ["providerOptions", "models", "providers"].every(key => Array.isArray(view?.[key]))
+    $("providerUnavailable").hidden = available
+    $("providerReport").hidden = !available
+    $("providerModel").disabled = !available
+    if (!available) {
+      provider = agent = ""
+      share(false)
+      for (const id of ["providerSelect", "providerModel", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons"]) $(id).innerHTML = ""
+      $("providerSelect").disabled = true
+      $("providerShare").disabled = true
+      return
+    }
     $("providerSelect").innerHTML = view.providerOptions.map(id => option(id, providerName(id))).join("")
     if (!view.providerOptions.includes(provider)) provider = view.providers[0]?.provider || ""
     $("providerSelect").value = provider
@@ -25,6 +37,7 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
     render()
   }
   function render() {
+    if (!available) return
     const p = data.providerView.providers.find(p => p.provider === provider)
     $("providerReportTitle").textContent = provider ? `${providerName(provider)} · ${T("providers.report")}` : T("providers.title")
     $("providerScope").textContent = `${date(data.since)} — ${date(data.generatedAt)} · ${data.providerView.model || T("providers.allModels")} · ${$("clients").checked ? T("providers.withClients") : T("providers.agentsOnly")}`
@@ -69,7 +82,7 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
     }
   })
   function share(value) {
-    if (value && $("providersBlock").getAttribute("aria-busy") === "true") return
+    if (value && ($("providerShare").disabled || $("providersBlock").getAttribute("aria-busy") === "true")) return
     sharing = value
     document.body.classList.toggle("share-mode", sharing)
     $("providerShare").setAttribute("aria-pressed", String(sharing))
