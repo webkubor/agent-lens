@@ -24,6 +24,22 @@ export function languageFor(value = "") {
 }
 
 const en = {
+  "detail.toolsNoResults": "No tools match this search.",
+  "table.categories": "Metric category",
+  "view.label": "Agent display",
+  "view.cards": "Overview",
+  "view.table": "Compare metrics",
+  "insights.more": "{count} more insights",
+  "table.guide": "How to read highlights and missing data",
+  "table.group.consumption": "Consumption",
+  "table.group.stability": "Stability",
+  "table.group.tasks": "Tasks & sessions",
+  "table.group.tools": "Tools & protocol",
+  "table.sorted": "Sorted by {column}, {direction}; {count} agents.",
+  "sort.ascending": "ascending",
+  "sort.descending": "descending",
+  "card.details": "View details",
+
   "col.taskDuration": "Avg task completion",
   "task.samples": "{count} completed tasks",
   "task.completed": "Valid completed tasks",
@@ -83,8 +99,9 @@ const en = {
   "reason.unknown": "Unclassified error",
   // ---- app shell ----
   "app.title": "HarnessWeight · agent harness token weight",
+  "status.empty": "No agent requests in this period",
   "status.loading": "Loading…",
-  "header.sub": "Behind one gateway: how many tokens each agent harness reads, how many hit the cache, how many calls fail, and how heavy the tool definitions it resends every turn are.",
+  "header.sub": "Compare agent consumption, reliability and tool overhead behind your gateway.",
   "aria.periods": "Period",
   "period.today": "Last 24 hours",
   "period.7d": "7 days",
@@ -98,7 +115,7 @@ const en = {
 
   // ---- sections ----
   "cards.title": "Where your tokens go",
-  "cards.hint": "Each card is an agent. Bar length is total input tokens; the darker segment combines fresh input and cache writes. Pricing depends on the provider.",
+  "cards.hint": "Largest values first. Select a metric to compare; open an agent for context.",
   "activity.connecting": "Connecting to live request status…",
   "table.title": "Compare metrics",
   "table.hint": "Click a column header to sort, or a row for details.",
@@ -276,6 +293,22 @@ const en = {
 }
 
 const zh = {
+  "detail.toolsNoResults": "没有匹配的工具，试试其他关键词。",
+  "table.categories": "指标分类",
+  "view.label": "Agent 展示方式",
+  "view.cards": "卡片总览",
+  "view.table": "指标对比",
+  "insights.more": "其余 {count} 条观察",
+  "table.guide": "如何理解极值和缺失数据",
+  "table.group.consumption": "消耗",
+  "table.group.stability": "稳定性",
+  "table.group.tasks": "任务与会话",
+  "table.group.tools": "工具与协议",
+  "table.sorted": "已按{column}{direction}排列，共 {count} 个 Agent。",
+  "sort.ascending": "升序",
+  "sort.descending": "降序",
+  "card.details": "查看详情",
+
   "col.taskDuration": "任务平均完成时间",
   "task.samples": "{count} 个有效完成任务",
   "task.completed": "有效完成任务数",
@@ -335,8 +368,9 @@ const zh = {
   "reason.unknown": "未分类错误",
   // ---- app shell ----
   "app.title": "HarnessWeight · agent harness 的 token 重量",
+  "status.empty": "本周期暂无 Agent 请求",
   "status.loading": "正在读取…",
-  "header.sub": "同一个网关后面，每个 agent harness 读了多少 token、命中多少缓存、失败多少次、每轮重发多重的工具定义。",
+  "header.sub": "看清网关后每个 Agent 的消耗、稳定性与工具开销。",
   "aria.periods": "统计周期",
   "period.today": "近 24 小时",
   "period.7d": "7 天",
@@ -350,7 +384,7 @@ const zh = {
 
   // ---- sections ----
   "cards.title": "谁在花你的 token",
-  "cards.hint": "每张卡是一个 Agent。条的长度是输入 token 总量，深色部分合计新鲜输入与缓存写入；价格由供应商决定。",
+  "cards.hint": "按所选指标从高到低排列，打开 Agent 查看明细与统计口径。",
   "activity.connecting": "正在连接实时调用状态…",
   "table.title": "逐项对比",
   "table.hint": "点表头排序，点一行看详情。",

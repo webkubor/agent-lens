@@ -25,3 +25,18 @@ provider report using the existing layout.
 Decision, 2026-11-11: implement the user's metric highlighting and supplier-view
 request with the existing styling. Runtime acceptance uses the local service and
 real browser interactions; no build system or new runtime dependencies required.
+
+Decision, 2026-11-11 (UI readability, requested by owner): preserve the existing
+teal/orange identity and all underlying measurements; prioritize scanning over
+showing every explanation simultaneously. Show one insight with an expandable
+remainder, a compact KPI strip, and mutually exclusive card overview / comparison
+views (remember the view locally). Keep insight expansion on data refresh. Card
+headline follows the selected sort; details retain task coverage and source notes.
+The comparison table switches among consumption, stability, tasks/sessions and tools
+so desktop comparison does not require one wide fourteen-column table;
+missing values stay distinct from zero and sort last. Native sort buttons move
+existing rows, retain focus and expose aria-sort. A named keyboard scroll region
+and sticky row headers retain context. Keep provider screenshot reports intact.
+Reuse existing colors/radius/shadow; add spacing, type and control-height aliases
+for the new compact layouts. Tradeoff: full metric comparison takes one explicit
+view switch, avoiding duplicate agent lists in the default overview.

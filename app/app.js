@@ -27,7 +27,9 @@ const state = {
   period: store.get("al.period") || "7d",
   clients: store.get("al.clients") === "1",
   sort: { key: "prompt", dir: -1 },
+  metricGroup: "consumption",
   cardSort: "prompt",
+  view: store.get("al.view") === "table" ? "table" : "cards",
   toolSort: "avgBytes",
   activeAgents: new Map(),
   activityKnown: false,
@@ -111,7 +113,9 @@ function tip(key, label) {
 
 // Render notes outside scroll containers so table and drawer overflow never clip them.
 let activeTip = null
+let tipCloseTimer
 function closeTip() {
+  clearTimeout(tipCloseTimer)
   if (!activeTip) return
   activeTip.trigger.setAttribute('aria-expanded', 'false')
   activeTip.bubble.remove()
@@ -121,12 +125,15 @@ function wireTips(root) {
   for (const t of root.querySelectorAll('.tip:not([data-wired])')) {
     t.dataset.wired = '1'
     const open = () => {
+      clearTimeout(tipCloseTimer)
       if (activeTip?.trigger === t) return
       closeTip()
       const bubble = document.createElement('div')
       bubble.className = 'floating-tip'
       bubble.setAttribute('aria-hidden', 'true') // trigger already contains the full accessible label
       bubble.innerHTML = t.querySelector('.tip-body').innerHTML
+      bubble.addEventListener('mouseenter', () => clearTimeout(tipCloseTimer))
+      bubble.addEventListener('mouseleave', () => { tipCloseTimer = setTimeout(closeTip, 180) })
       document.body.append(bubble)
       const r = t.getBoundingClientRect(), b = bubble.getBoundingClientRect()
       const left = Math.max(8, Math.min(window.innerWidth - b.width - 8, r.left + r.width / 2 - b.width / 2))
@@ -138,20 +145,21 @@ function wireTips(root) {
     }
     const close = () => { if (activeTip?.trigger === t) closeTip() }
     t.addEventListener('mouseenter', open)
-    t.addEventListener('mouseleave', close)
+    t.addEventListener('mouseleave', () => { tipCloseTimer = setTimeout(close, 180) })
     t.addEventListener('focus', open)
     t.addEventListener('blur', close)
     t.addEventListener('click', e => { e.stopPropagation(); open() })
     t.addEventListener('keydown', e => {
+      if (!['Escape', 'Enter', ' '].includes(e.key)) return
       e.stopPropagation()
-      if (e.key === 'Escape') { close(); t.blur() }
+      if (e.key === 'Escape') { e.preventDefault(); close() }
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activeTip?.trigger === t ? close() : open() }
     })
   }
 }
 document.addEventListener('scroll', closeTip, true)
 window.addEventListener('resize', closeTip)
-document.addEventListener('pointerdown', e => { if (!e.target.closest('.tip')) closeTip() })
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.tip, .floating-tip')) closeTip() })
 
 // Only request-start / response-finish hook observations drive activity.
 // Completed-request timestamps must never masquerade as in-flight calls.
@@ -212,16 +220,19 @@ function paint() {
   const d = state.data
   $("state").hidden = true
   providers.paint(d)
+  paintStatus(d)
+  for (const id of ["agentsBlock", "toolsBlock"]) $(id).hidden = !d.agents.length
   if (!d.agents.length) {
     for (const id of ["insights", "kpis", "cards", "tools"]) $(id).innerHTML = ""
     $("table").innerHTML = ""
+    $("status").textContent = T("status.empty")
     showState(T("state.noAgents"))
     return
   }
-  paintStatus(d)
   paintInsights(d)
   paintKpis(d)
   paintCardSort()
+  paintView()
   paintCards(d)
   paintTable(d)
   paintTools(d)
@@ -249,9 +260,10 @@ function paintStatus(d) {
 }
 
 function paintInsights(d) {
-  $("insights").innerHTML = d.insights
-    .map((i) => `<div class="insight${i.kind === "volume" || i.kind === "errors" ? " hot" : ""}">${esc(i.text)}</div>`)
-    .join("")
+  const expanded = $("insights").querySelector("details")?.open || false
+  const render = i => `<div class="insight${i.kind === "volume" || i.kind === "errors" ? " hot" : ""}">${esc(i.text)}</div>`
+  const [primary, ...rest] = d.insights
+  $("insights").innerHTML = primary ? render(primary) + (rest.length ? `<details${expanded ? " open" : ""}><summary>${esc(T("insights.more", { count: rest.length }))}</summary>${rest.map(render).join("")}</details>` : "") : ""
 }
 
 function paintKpis(d) {
@@ -265,13 +277,13 @@ function paintKpis(d) {
   ]
   if (t.credits > 0) items.splice(4, 0, [T("kpi.credits"), t.credits.toFixed(2), T("kpi.creditsNote")])
   $("kpis").innerHTML = items
-    .map(([k, v, s, tipKey]) => `<div class="kpi"><div class="k">${tipKey ? tip(tipKey, k) : k}</div><div class="v num">${v}</div><div class="s">${esc(s)}</div></div>`)
+    .map(([k, v, s, tipKey]) => `<div class="kpi" title="${esc(s)}"><div class="k">${tipKey ? tip(tipKey, k) : k}</div><div class="v num">${v}</div><div class="s" title="${esc(s)}">${esc(s)}</div></div>`)
     .join("")
 }
 
 function paintCards(d) {
-  const ranges = extrema(d.agents)
   const max = Math.max(...d.agents.map((a) => a.prompt), 1)
+  const metric = state.cardSort
   const sorted = [...d.agents].sort((x, y) => cardVal(y, state.cardSort) - cardVal(x, state.cardSort))
   $("cards").innerHTML = sorted
     .map((a, i) => {
@@ -279,34 +291,37 @@ function paintCards(d) {
       const fullW = a.prompt ? (a.fullPrice / a.prompt) * w : 0
       const top1 = a.prompt === max && d.agents.length > 1
       const live = isLive(a)
-      const proto = a.protocols?.[0]?.name
-      return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" tabindex="0" role="button" data-agent="${esc(a.agent)}" aria-label="${esc(T("card.detailsAria", { name: a.name || a.agent }))}">
+      const value = metricValue(a, metric)
+      return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" data-agent="${esc(a.agent)}" aria-label="${esc(T("card.detailsAria", { name: a.name || a.agent }))}">
         <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${live ? activityBadge(a.agent) : ""}${top1 ? `<span class="tag">${esc(T("card.topSpender"))}</span>` : ""}</div>
-        <div class="card-big num">${short(a.prompt)}<small>${esc(T("card.inputTokens"))}</small></div>
-        <div class="stack" title="${esc(T("card.stackLegend"))}"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>
+        <div class="card-big num">${formatMetric(value, metric)}<small>${esc(T(`col.${metric}`))}</small></div>
+        ${metric === "prompt" ? `<div class="stack" title="${esc(T("card.stackLegend"))}"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>` : ""}
+        ${metric === "taskDuration" ? `<p class="task-context hint">${esc(value === null ? taskEmpty(a) : taskSamples(a))}</p>` : ""}
         <div class="card-meta">
-          <div><b class="num">${pct(a.cacheRate)}</b>${tip("cacheRate", esc(T("col.cacheRate")))}</div>
-          <div><b class="num">${short(a.avgPrompt)}</b>${tip("avgPrompt", esc(T("col.avgPrompt")))}</div>
-          <div><b class="num ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(a.errorRate)}</b>${tip("errorRate", esc(T("col.errorRate")))}</div>
+          <div><b class="num">${pct(metricValue(a, "cacheRate"))}</b>${tip("cacheRate", esc(T("col.cacheRate")))}</div>
+          <div><b class="num">${short(metricValue(a, "avgPrompt"))}</b>${tip("avgPrompt", esc(T("col.avgPrompt")))}</div>
+          <div><b class="num ${a.errorRate >= 0.03 ? "bad" : ""}">${pct(metricValue(a, "errorRate"))}</b>${tip("errorRate", esc(T("col.errorRate")))}</div>
         </div>
-        ${proto ? `<div class="card-foot"><span class="proto" title="${esc(proto)}">${esc(proto)}</span>${a.session?.median ? `<span class="dur" title="${esc(T("card.sessionMedianTitle"))}">${dur(a.session.median)}</span>` : ""}</div>` : ""}
-        <div class="card-foot" data-task-duration><span>${esc(T("col.taskDuration"))} ${taskValue(a, ranges)} · ${esc(taskSamples(a))}${metricValue(a, "taskDuration") === null ? `<br>${esc(taskEmpty(a))}` : ""}</span></div>
-        ${spark(a.series, "prompt")}
+        <div class="card-foot"><span>${int(a.calls)} ${esc(T("col.calls"))}</span><button class="card-open" type="button" data-open-agent="${esc(a.agent)}" aria-label="${esc(T("card.detailsAria", { name: a.name || a.agent }))}">${esc(T("card.details"))} ›</button></div>
       </div>`
     })
     .join("")
 }
 
-const val = (a, k) => {
-  if (k === "taskDuration") return metricValue(a, k)
-  if (k === "toolTokens") return a.tools?.avgTokens ?? -1
-  if (k === "agent") return a.name || a.agent
-  if (k === "protocol") return a.protocols?.[0]?.name || ""
-  if (k === "session") return a.session?.median ?? -1
-  return a[k]
+function formatMetric(value, key) {
+  if (key === "cacheRate" || key === "errorRate") return pct(value)
+  if (key === "taskDuration" || key === "session") return dur(value)
+  if (key === "p50ttft" || key === "p50ms") return secs(value)
+  return key === "calls" ? int(value) : short(value)
 }
-
-const cardVal = (a, k) => (k === "taskDuration" ? metricValue(a, k) ?? -1 : k === "toolTokens" ? a.tools?.avgTokens ?? -1 : a[k] ?? -1)
+const val = (a, k) => k === "agent" ? a.name || a.agent : k === "protocol" ? a.protocols?.[0]?.name || "" : metricValue(a, k)
+const cardVal = (a, k) => metricValue(a, k) ?? -1
+function paintView() {
+  const cards = state.view === "cards"
+  for (const id of ["cards", "cardSort", "cardsHint", "activityInfo"]) $(id).hidden = !cards
+  $("comparison").hidden = cards
+  for (const b of $("agentView").children) b.setAttribute("aria-pressed", String(b.dataset.view === state.view))
+}
 
 function paintCardSort() {
   const box = $("cardSort")
@@ -318,39 +333,52 @@ function paintCardSort() {
 function metricCell(a, key, formatted, ranges) {
   const value = metricValue(a, key)
   const edge = extremum(value, ranges[key], DIRECTIONS[key])
-  const note = key === "taskDuration" ? `<span class="extreme-label">${esc(taskSamples(a))}</span>${value === null ? `<span class="extreme-label">${esc(taskEmpty(a))}</span>` : ""}` : ""
-  return `<td class="n ${edge ? `metric-${edge.quality}` : ""}" data-metric="${key}">${value === null ? "—" : formatted}${note}${edge ? `<span class="extreme-label" title="${esc(T(`extreme.${edge.edge}`))}">${esc(T(`extreme.${edge.quality}`))}</span>` : ""}</td>`
+  const note = key === "taskDuration" && value !== null ? `<span class="extreme-label">${esc(taskSamples(a))}</span>` : ""
+  return `<td class="n ${edge ? `metric-${edge.quality}` : ""}" data-metric="${key}"${key === "taskDuration" && value === null ? ` title="${esc(taskEmpty(a))}"` : ""}>${value === null ? "—" : formatted}${note}${edge ? `<span class="extreme-label" title="${esc(T(`extreme.${edge.edge}`))}">${esc(T(`extreme.${edge.quality}`))}</span>` : ""}</td>`
 }
 
+const TABLE_GROUPS = [
+  ["consumption", ["calls", "prompt", "avgPrompt", "cacheRate", "fullPrice", "out"]],
+  ["stability", ["errorRate", "p50ttft", "p50ms"]],
+  ["tasks", ["taskDuration", "session"]],
+  ["tools", ["toolTokens", "protocol"]],
+]
+const tableCols = [COLS[0], ...TABLE_GROUPS.flatMap(([, keys]) => keys.map(k => COLS.find(([key]) => key === k)))]
+function paintMetricGroup() {
+  const keys = TABLE_GROUPS.find(([group]) => group === state.metricGroup)[1]
+  $("metricGroups").innerHTML = TABLE_GROUPS.map(([group]) => `<button type="button" class="pill${group === state.metricGroup ? " on" : ""}" data-metric-group="${group}" aria-pressed="${group === state.metricGroup}">${esc(T(`table.group.${group}`))}</button>`).join("")
+  for (const row of $("table").rows) {
+    if (row.classList.contains("column-groups")) {
+      [...row.cells].forEach((cell, i) => { cell.hidden = i > 0 && TABLE_GROUPS[i - 1][0] !== state.metricGroup })
+    } else {
+      [...row.cells].forEach((cell, i) => { cell.hidden = i > 0 && !keys.includes(tableCols[i][0]) })
+    }
+  }
+}
+function sortTable() {
+  const { key, dir } = state.sort
+  const agents = new Map(state.data.agents.map(a => [a.agent, a]))
+  const collator = new Intl.Collator(LOCALE, { numeric: true, sensitivity: "base" })
+  const body = $("table").tBodies[0]
+  const rows = [...body.rows].sort((x, y) => {
+    const a = val(agents.get(x.dataset.agent), key), b = val(agents.get(y.dataset.agent), key)
+    if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1
+    return (typeof a === "string" ? collator.compare(a, b) : a - b) * dir
+  })
+  for (const row of rows) body.moveBefore ? body.moveBefore(row, null) : body.append(row)
+  for (const th of $("table").querySelectorAll("th[data-key]")) {
+    if (th.dataset.key === key) th.setAttribute("aria-sort", dir < 0 ? "descending" : "ascending")
+    else th.removeAttribute("aria-sort")
+  }
+}
 function paintTable(d) {
   const ranges = extrema(d.agents)
-  const { key, dir } = state.sort
-  const rows = [...d.agents].sort((x, y) => {
-    const a = val(x, key), b = val(y, key)
-    if (key === "taskDuration" && (a === null || b === null)) return a === b ? 0 : a === null ? 1 : -1
-    return typeof a === "string" ? a.localeCompare(b) * dir : ((a ?? 0) - (b ?? 0)) * dir
-  })
-  const topAgent = d.agents[0]?.agent
-  const head = COLS.map(([k, nameKey, n, tipKey]) => { const name = esc(T(nameKey)); return  `<th class="${n ? "n" : ""}" data-key="${k}" ${k === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""} tabindex="0">${tipKey ? tip(tipKey, name) : name}</th>` }).join("")
-  const body = rows
-    .map((a) => `<tr tabindex="0" data-agent="${esc(a.agent)}">
-      <td class="agent"><span class="who">${mark(a, 18)}${label(a)}${a.agent === topAgent && d.agents.length > 1 ? `<span class="dot hot" title="${esc(T("table.topSpenderTitle"))}"></span>` : ""}</span></td>
-      ${metricCell(a, "taskDuration", dur(a.taskDuration?.averageMs), ranges)}
-      ${metricCell(a, "calls", int(a.calls), ranges)}
-      ${metricCell(a, "prompt", short(a.prompt), ranges)}
-      ${metricCell(a, "avgPrompt", short(a.avgPrompt), ranges)}
-      ${metricCell(a, "cacheRate", pct(a.cacheRate), ranges)}
-      ${metricCell(a, "fullPrice", short(a.fullPrice), ranges)}
-      ${metricCell(a, "out", short(a.out), ranges)}
-      ${metricCell(a, "errorRate", pct(a.errorRate), ranges)}
-      ${metricCell(a, "p50ttft", secs(a.p50ttft), ranges)}
-      ${metricCell(a, "p50ms", secs(a.p50ms), ranges)}
-      ${metricCell(a, "toolTokens", a.tools ? short(a.tools.avgTokens) : "—", ranges)}
-      <td class="n proto-cell" title="${esc(a.protocols?.map((p) => p.name).join(", ")) || ""}">${a.protocols?.length ? esc(a.protocols[0].name) : "—"}</td>
-      ${metricCell(a, "session", dur(a.session?.median), ranges)}
-    </tr>`)
-    .join("")
-  $("table").innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`
+  const groups = TABLE_GROUPS.map(([group, keys]) => `<th scope="colgroup" colspan="${keys.length}">${esc(T(`table.group.${group}`))}</th>`).join("")
+  const head = tableCols.map(([k, nameKey, n, tipKey]) => `<th scope="col" class="${n ? "n" : ""}" data-key="${k}"><div class="column-heading"><button type="button" data-table-sort="${k}">${esc(T(nameKey))}<span class="sort-icon" aria-hidden="true">↕</span></button>${tipKey ? tip(tipKey) : ""}</div></th>`).join("")
+  const body = d.agents.map(a => `<tr data-agent="${esc(a.agent)}"><th scope="row" class="agent"><button type="button" class="agent-open who" data-open-agent="${esc(a.agent)}">${mark(a, 18)}${label(a)}</button></th>${tableCols.slice(1).map(([key]) => key === "protocol" ? `<td class="proto-cell" title="${esc(a.protocols?.map(p => p.name).join(", "))}">${esc(a.protocols?.[0]?.name || "—")}</td>` : metricCell(a, key, formatMetric(metricValue(a, key), key), ranges)).join("")}</tr>`).join("")
+  $("table").innerHTML = `<caption class="sr-only" id="comparison-caption">${esc(T("table.title"))}</caption><thead><tr class="column-groups"><th></th>${groups}</tr><tr>${head}</tr></thead><tbody>${body}</tbody>`
+  paintMetricGroup()
+  sortTable()
 }
 
 function paintTools(d) {
@@ -380,11 +408,16 @@ function distribution(items, total) {
   return items.map(m => `<div class="dist-row"><div><span>${esc(m.label || m.name)}</span><span class="num">${esc(T("detail.countPct", { count: int(m.count), pct: pct(total ? m.count / total : 0) }))}</span></div><div class="dist-track"><span style="width:${Math.min(100, total ? m.count / total * 100 : 0)}%"></span></div></div>`).join("")
 }
 
+let drawerOpener = null
 function openDetail(agent, focus = true) {
+  if (focus) drawerOpener = document.activeElement
   const a = state.data?.agents.find(x => x.agent === agent)
   if (!a) return closeDetail()
   const previousDetails = !focus ? [...$("detail").querySelectorAll('details')].map(d => d.open) : []
   const previousQuery = !focus ? $("detail").querySelector('.tool-search input')?.value || '' : ''
+  const controls = 'button, input, summary, a[href], [tabindex="0"]'
+  const focusedIndex = !focus ? [...$("detail").querySelectorAll(controls)].indexOf(document.activeElement) : -1
+  const selection = document.activeElement instanceof HTMLInputElement ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null
   state.openAgent = agent
   const modelCount = a.models.reduce((n,m) => n + m.count, 0)
   const protoNames = {anthropic:'Anthropic Messages', responses:'OpenAI Responses', chat:'OpenAI Chat Completions', gemini:'Google Gemini', other:T('detail.otherProtocol')}
@@ -412,26 +445,40 @@ function openDetail(agent, focus = true) {
     <section class="sec"><h4>${esc(T('detail.trendTitle'))}</h4>${spark(a.series,'prompt','big') || `<p class="hint">${esc(T('detail.trendEmpty'))}</p>`}<p class="hint">${esc(T('detail.trendNote'))}</p></section>
   </div>`
   wireTips($("detail"))
+  const search = $("detail").querySelector('.tool-search')
+  if (search) search.insertAdjacentHTML('afterend', `<p class="hint" id="toolSearchStatus" role="status"></p>`)
   $("detail").querySelector('.tool-search input')?.addEventListener('input', e => {
     const term = e.target.value.trim().toLowerCase()
-    for (const item of $("detail").querySelectorAll('[data-tool-name]')) item.hidden = !item.dataset.toolName.includes(term)
+    const items = [...$("detail").querySelectorAll('[data-tool-name]')]
+    for (const item of items) item.hidden = !item.dataset.toolName.includes(term)
+    $("toolSearchStatus").textContent = term && items.every(item => item.hidden) ? T("detail.toolsNoResults") : ""
   })
   if (!focus) {
     $("detail").querySelectorAll('details').forEach((d,i) => { d.open = !!previousDetails[i] })
     const input = $("detail").querySelector('.tool-search input')
     if (input) { input.value = previousQuery; input.dispatchEvent(new Event('input')) }
+    const focused = $("detail").querySelectorAll(controls)[focusedIndex]
+    focused?.focus({ preventScroll: true })
+    if (focused instanceof HTMLInputElement && selection) focused.setSelectionRange(...selection)
   }
   const dr = $("drawer")
+  dr.inert = false
+  for (const el of document.querySelectorAll("body > header, main, footer")) el.inert = true
   dr.classList.add("open")
   dr.setAttribute("aria-hidden", "false")
   $("scrim").hidden = false
   if (focus) { dr.scrollTop = 0; dr.focus() }
 }
 function closeDetail() {
+  const closedAgent = state.openAgent
   state.openAgent = null
+  $("drawer").inert = true
+  for (const el of document.querySelectorAll("body > header, main, footer")) el.inert = false
   $("drawer").classList.remove("open")
   $("drawer").setAttribute("aria-hidden", "true")
   $("scrim").hidden = true
+  if (drawerOpener?.isConnected && drawerOpener !== document.body) drawerOpener.focus()
+  else [...document.querySelectorAll("[data-open-agent]")].find(el => el.dataset.openAgent === closedAgent && el.getClientRects().length)?.focus()
 }
 
 const providers = providerView({ T, esc, int, pct, locale: LOCALE, onModelChange: model => {
@@ -495,7 +542,14 @@ $("clients").addEventListener("change", (e) => {
   load()
 })
 const pick = (e) => e.target.closest("[data-agent]")?.dataset.agent
-$("cards").addEventListener("click", (e) => { const a = pick(e); if (a) openDetail(a) })
+$("cards").addEventListener("click", (e) => { if (e.target.closest(".tip")) return; const a = pick(e); if (a) openDetail(a) })
+$("agentView").addEventListener("click", e => {
+  const b = e.target.closest("button[data-view]")
+  if (!b) return
+  state.view = b.dataset.view
+  store.set("al.view", state.view)
+  paintView()
+})
 $("cardSort").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-sort]")
   if (!b || b.dataset.sort === state.cardSort) return
@@ -510,27 +564,36 @@ $("toolsHint").addEventListener("click", (e) => {
   state.toolSort = b.dataset.tsort
   paintTools(state.data)
 })
+$("metricGroups").addEventListener("click", e => {
+  const button = e.target.closest("button[data-metric-group]")
+  if (!button) return
+  state.metricGroup = button.dataset.metricGroup
+  const keys = TABLE_GROUPS.find(([group]) => group === state.metricGroup)[1]
+  if (!keys.includes(state.sort.key) && state.sort.key !== "agent") state.sort = { key: keys[0], dir: -1 }
+  paintMetricGroup()
+  sortTable()
+  $("metricGroups").querySelector(`[data-metric-group="${state.metricGroup}"]`).focus()
+})
 $("table").addEventListener("click", (e) => {
-  const th = e.target.closest("th[data-key]")
-  if (th) {
-    const k = th.dataset.key
-    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : k === "agent" ? 1 : -1 }
-    paintTable(state.data)
-    wireTips($("table"))
+  if (e.target.closest(".tip")) return
+  const button = e.target.closest("button[data-table-sort]")
+  if (button) {
+    const k = button.dataset.tableSort
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : 1 }
+    sortTable()
+    $("sortStatus").textContent = T("table.sorted", { column: T(tableCols.find(([key]) => key === k)[1]), direction: T(state.sort.dir < 0 ? "sort.descending" : "sort.ascending"), count: state.data.agents.length })
     return
   }
   const a = pick(e)
   if (a) openDetail(a)
 })
-for (const id of ["cards", "table"]) {
-  $(id).addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return
-    const th = e.target.closest("th[data-key]")
-    if (th) { e.preventDefault(); return th.click() }
-    const a = pick(e)
-    if (a) { e.preventDefault(); openDetail(a) }
-  })
-}
+$("drawer").addEventListener("keydown", e => {
+  if (e.key !== "Tab") return
+  const controls = [...$("drawer").querySelectorAll('button, input, summary, a[href], [tabindex="0"]')].filter(el => el.getClientRects().length)
+  const first = controls[0], last = controls.at(-1)
+  if (e.shiftKey && (document.activeElement === first || document.activeElement === $("drawer"))) { e.preventDefault(); last?.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+})
 $("close").addEventListener("click", closeDetail)
 $("scrim").addEventListener("click", closeDetail)
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.openAgent) closeDetail() })

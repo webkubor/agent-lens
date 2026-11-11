@@ -39,6 +39,9 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
   }
   function render() {
     if (!available) return
+    const focused = document.activeElement
+    const focusedAgent = focused?.dataset.providerAgent
+    const focusedReason = focused?.id === "providerAll" || focused?.matches("#providerReasonDetail > summary")
     const p = data.providerView.providers.find(p => p.provider === provider)
     $("providerReportTitle").textContent = provider ? `${providerName(provider)} · ${T("providers.report")}` : T("providers.title")
     $("providerScope").textContent = `${date(data.since)} — ${date(data.generatedAt)} · ${data.providerView.model || T("providers.allModels")} · ${$("clients").checked ? T("providers.withClients") : T("providers.agentsOnly")}`
@@ -63,6 +66,12 @@ export function providerView({ T, esc, int, pct, locale, onModelChange }) {
     }).join("")
     $("providerTable").innerHTML = `<thead><tr>${["col.agent", "col.calls", "kpi.failed", "col.errorRate", "providers.cancelled", "providers.topReason"].map((k, i) => `<th scope="col"${i > 0 && i < 5 ? ' class="n"' : ""}>${esc(T(k))}</th>`).join("")}</tr></thead><tbody>${cells}</tbody>`
     renderReasons(p)
+    if (focusedAgent) {
+      const replacement = [...$("providerTable").querySelectorAll("[data-provider-agent]")].find(b => b.dataset.providerAgent === focusedAgent)
+      replacement?.focus({ preventScroll: true })
+    } else if (focusedReason) {
+      $("providerReasonDetail")?.querySelector("summary")?.focus({ preventScroll: true })
+    }
   }
   function renderReasons(p) {
     if (!p.harnesses.some(a => a.agent === agent)) agent = ""
