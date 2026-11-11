@@ -145,6 +145,37 @@ test("runBenchmark issues one request per provider through the gateway and write
   }
 })
 
+test("runBenchmark repeats each provider the requested number of samples", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "hw-bench-"))
+  let chatHit = 0
+  const server = createServer((req, res) => {
+    if (req.method !== "POST" || req.url !== "/v1/chat/completions") { res.writeHead(404); res.end(); return }
+    chatHit++
+    let body = ""
+    req.on("data", (c) => (body += c))
+    req.on("end", () => {
+      res.setHeader("content-type", "application/json")
+      res.end(JSON.stringify({ choices: [{ message: { content: "ok" } }], usage: { completion_tokens: 3, total_tokens: 9 } }))
+    })
+  })
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const gateway = `http://127.0.0.1:${server.address().port}`
+  const file = join(dir, "bench.jsonl")
+  try {
+    const { rows, summary } = await runBenchmark({ gateway, file, models: { alpha: "alpha/a1" }, samples: 3, perRequestMs: 5000 })
+    assert.equal(rows.length, 3)
+    assert.equal(chatHit, 3)
+    assert.equal(summary.length, 1)
+    assert.equal(summary[0].samples, 3)
+    assert.equal(summary[0].errorRate, 0)
+    const lines = (await readFile(file, "utf8")).trim().split("\n")
+    assert.equal(lines.length, 3)
+  } finally {
+    await new Promise((r) => server.close(r))
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test("DEFAULT_MODELS maps known suppliers to gateway-format ids with a provider prefix", () => {
   const ids = Object.values(DEFAULT_MODELS)
   for (const id of ids) assert.equal(id.includes("/") && !id.startsWith("group/"), true, id)

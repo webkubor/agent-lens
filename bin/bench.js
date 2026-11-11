@@ -7,6 +7,7 @@
 //   --file <path>     JSONL append target (default: scratch or ./bench.jsonl)
 //   --providers a,b   comma list of provider keys to run (default: discover)
 //   --task text|code|reasoning
+//   --samples <n>     requests per provider (default 1)
 //   --once            run one request per selected provider (default)
 //   --json            print the summary as JSON instead of a table
 //   --report <path>   also write a self-contained HTML report page
@@ -46,7 +47,7 @@ function table(rows) {
 
 let exitCode = 0
 
-function reportHtml({ gateway, file, task, generatedAt, summary }) {
+function reportHtml({ gateway, file, task, samples, generatedAt, summary }) {
   const rows = summary.map((r) => {
     const errRate = Math.round(r.errorRate * 100)
     const bar = Math.max(0, Math.min(100, errRate))
@@ -78,7 +79,7 @@ tbody tr:last-child td{border-bottom:none}.prov{font-weight:600}.model{color:var
 .detail td{background:#12151f}.detail ul{margin:8px 0 4px;padding-left:18px}.small{font-size:12px}.row{cursor:pointer}.row:hover{background:#1a2030}
 </style></head><body>
 <h1><span class="dot"></span>HarnessWeight · Provider Benchmark</h1>
-<div class="meta"><span>Generated ${new Date(generatedAt).toLocaleString()}</span><span>Task: ${esc(task)}</span><span>Gateway: ${esc(gateway)}</span></div>
+<div class="meta"><span>Generated ${new Date(generatedAt).toLocaleString()}</span><span>Task: ${esc(task)}</span><span>Samples per provider: ${samples ?? 1}</span><span>Gateway: ${esc(gateway)}</span></div>
 <div class="cards">${cards}</div>
 <table>
 <thead><tr><th>Provider</th><th>Model</th><th>Samples</th><th>Error rate</th><th>p50 (ms)</th><th>p95 (ms)</th><th>TTFT p50 (ms)</th><th>Timeouts</th><th>Top error</th></tr></thead>
@@ -121,11 +122,12 @@ async function main() {
   }
 
   const report = flag("report", "")
-  const { summary } = await runBenchmark({ gateway, file, models, task })
+  const samples = Math.max(1, Number(flag("samples", "1")) || 1)
+  const { summary } = await runBenchmark({ gateway, file, models, task, samples })
   if (report) {
-    const html = reportHtml({ gateway, file, task, generatedAt: Date.now(), summary })
+    const html = reportHtml({ gateway, file, task, samples, generatedAt: Date.now(), summary })
     await writeFile(report, html, "utf8")
-    await writeFile(join(dirname(report), "bench-data.json"), JSON.stringify({ gateway, file, task, generatedAt: Date.now(), summary }, null, 2), "utf8")
+    await writeFile(join(dirname(report), "bench-data.json"), JSON.stringify({ gateway, file, task, samples, generatedAt: Date.now(), summary }, null, 2), "utf8")
     stdout.write(`Report written to ${report}\n`)
   }
   if (asJson) {
