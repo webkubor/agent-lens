@@ -65,8 +65,11 @@
       <p class="hint" data-t="providers.hint"></p>
     </div>
     <p id="providerUnavailable" class="empty-note" role="status" data-t="providers.serviceReload" hidden></p>
+    <div id="providerPicker" class="provider-picker">
+      <div id="providerGallery" class="provider-gallery" role="group" aria-label-t="providers.provider"></div>
+      <button id="providerExpand" class="pill provider-expand" aria-expanded="false" aria-controls="providerGallery" hidden></button>
+    </div>
     <div class="provider-controls">
-      <label><span data-t="providers.provider"></span><select id="providerSelect" name="provider"></select></label>
       <label><span data-t="providers.model"></span><select id="providerModel" name="model"></select></label>
       <button class="pill" id="providerShare" aria-pressed="false" data-t="providers.share"></button>
     </div>
@@ -77,8 +80,12 @@
         <p class="hint" id="providerScope"></p>
       </header>
       <dl class="report-stats" id="providerKpis"></dl>
-      <div class="table-wrap"><table id="providerTable"></table></div>
-      <p class="hint" data-t="providers.drilldown"></p>
+      <section class="provider-coverage" aria-labelledby="providerCoverageTitle">
+        <div class="provider-coverage-head"><h3 id="providerCoverageTitle" data-t="providers.coverage"></h3><span data-t="providers.observed"></span></div>
+        <div id="providerHarnesses" class="provider-harnesses"></div>
+        <p class="hint" data-t="providers.drilldown"></p>
+      </section>
+      <details class="provider-table-detail"><summary data-t="providers.fullBreakdown"></summary><div class="table-wrap" tabindex="0" role="region" aria-label-t="providers.fullBreakdown"><table id="providerTable"></table></div></details>
       <div id="providerReasons" aria-live="polite"></div>
       <footer class="report-note"><p data-t="providers.formula"></p><p data-t="providers.caveat"></p></footer>
     </div>

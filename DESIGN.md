@@ -51,3 +51,15 @@ brand in the report header and preserve the agent marks already provided by the
 summary. Promote failure rate as the report's primary metric without inventing
 thresholds or changing its calculation. Keep counts, cancellations, period and
 source notes visible. Mobile stacks the controls and pairs report metrics.
+
+Decision, 2026-11-11 (provider showcase and card model strip): the owner's screenshot
+marks the space next to the card's primary value for actual model-family icons,
+ordered by request count, with horizontal overflow fading at the edge. Use the
+summary's top-model counts (currently up to eight), retain exact model names and
+counts in accessible hover/focus explanations, and leave unresolved aliases
+unbranded. Match model names rather than gateway/harness names; Codex may use
+MiniMax, and that card must show MiniMax's model mark. The strip scrolls, supports
+arrow/Home/End keys, reveals the focused item and preserves focus on refresh.
+The provider area uses visible large brand tiles and a provider-led share report,
+with per-Harness request/error/cancellation evidence. These are observations,
+not a synthetic compatibility score or a controlled model comparison.

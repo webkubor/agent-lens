@@ -93,7 +93,7 @@ test("authenticated summary exposes model-filtered supplier reports without chan
 
 
 test("provider UI isolates missing service data, clears stale reports and recovers on the next summary", t => {
-  const ids = ["providerUnavailable", "providerReport", "providerSelect", "providerModel", "providerShare", "providerReportTitle", "providerReportMark", "providerScope", "providerKpis", "providerTable", "providerReasons", "providersBlock", "clients"]
+  const ids = ["providerPicker", "providerGallery", "providerExpand", "providerHarnesses", "providerUnavailable", "providerReport", "providerModel", "providerShare", "providerReportTitle", "providerReportMark", "providerScope", "providerKpis", "providerTable", "providerReasons", "providersBlock", "clients"]
   const nodes = Object.fromEntries(ids.map(id => {
     const node = new EventTarget()
     Object.assign(node, { innerHTML: "", textContent: "", value: "", disabled: false, hidden: false, checked: false })
@@ -117,24 +117,57 @@ test("provider UI isolates missing service data, clears stale reports and recove
   for (const missing of [undefined, null, {}, { providers: [], models: [] }, { providerOptions: [], providers: [], models: null }]) {
     ui.paint({ ...summary, providerView: missing })
     assert.equal(nodes.providerUnavailable.hidden, false)
+    assert.equal(nodes.providerPicker.hidden, true)
     assert.equal(nodes.providerReport.hidden, true)
-    for (const id of ["providerSelect", "providerModel", "providerShare"]) assert.equal(nodes[id].disabled, true, id)
+    for (const id of ["providerModel", "providerShare"]) assert.equal(nodes[id].disabled, true, id)
     nodes.providerShare.dispatchEvent(new Event("click"))
     assert.equal(ui.isSharing(), false)
   }
   ui.paint(healthy)
   assert.equal(nodes.providerUnavailable.hidden, true)
   assert.equal(nodes.providerReport.hidden, false)
-  for (const id of ["providerSelect", "providerModel", "providerShare"]) assert.equal(nodes[id].disabled, false, id)
+  for (const id of ["providerModel", "providerShare"]) assert.equal(nodes[id].disabled, false, id)
   assert.match(nodes.providerTable.innerHTML, /Claude Code/)
-  assert.equal(nodes.providerSelect.value, "alpha")
+  assert.match(nodes.providerGallery.innerHTML, /data-provider="alpha" aria-pressed="true"/)
+  assert.match(nodes.providerHarnesses.innerHTML, /Claude Code/)
+  assert.match(nodes.providerKpis.innerHTML, /Observed Harnesses/)
+  assert.equal(nodes.providerPicker.hidden, false)
 
   ui.paint(summary)
-  for (const id of ["providerSelect", "providerModel", "providerReportTitle", "providerReportMark", "providerScope", "providerKpis", "providerTable", "providerReasons"]) assert.equal(nodes[id].innerHTML, "", id)
+  for (const id of ["providerGallery", "providerHarnesses", "providerModel", "providerReportTitle", "providerReportMark", "providerScope", "providerKpis", "providerTable", "providerReasons"]) assert.equal(nodes[id].innerHTML, "", id)
   assert.deepEqual(summary, originalSummary)
   ui.paint(healthy)
   assert.match(nodes.providerTable.innerHTML, /Claude Code/)
   assert.equal(nodes.providerShare.disabled, false)
+
+  const many = { ...summary, providerView: summarize([
+    ...Array.from({ length: 9 }, (_, i) => row({ provider: `supplier-${i}` })),
+    row({ provider: "supplier-7" }), row({ provider: "supplier-7" }),
+  ]) }
+  ui.paint(many)
+  const galleryOrder = [...nodes.providerGallery.innerHTML.matchAll(/data-provider="([^"]+)"/g)].map(m => m[1])
+  assert.deepEqual(galleryOrder, ["supplier-7", "supplier-0", "supplier-1", "supplier-2", "supplier-3", "supplier-4"])
+  assert.equal((nodes.providerGallery.innerHTML.match(/data-provider=/g) || []).length, 6)
+  assert.equal(nodes.providerExpand.hidden, false)
+  nodes.providerExpand.dispatchEvent(new Event("click"))
+  assert.equal((nodes.providerGallery.innerHTML.match(/data-provider=/g) || []).length, 9)
+  assert.equal(nodes.providerExpand.getAttribute("aria-expanded"), "true")
+  nodes.providerGallery.closest = () => ({ dataset: { provider: "supplier-8" } })
+  nodes.providerGallery.dispatchEvent(new Event("click"))
+  assert.equal(nodes.providerReportTitle.textContent, "supplier-8")
+  nodes.providerExpand.dispatchEvent(new Event("click"))
+  assert.equal((nodes.providerGallery.innerHTML.match(/data-provider=/g) || []).length, 6)
+  assert.match(nodes.providerGallery.innerHTML, /data-provider="supplier-8" aria-pressed="true"/)
+  assert.equal(nodes.providerExpand.getAttribute("aria-expanded"), "false")
+
+  ui.paint({ ...summary, providerView: summarize([
+    row(), row({ status: 500 }), row(), row({ agent: "codex" }),
+  ]) })
+  assert.match(nodes.providerKpis.innerHTML, /25\.00%/)
+  assert.match(nodes.providerHarnesses.innerHTML, /33\.33%/)
+  assert.match(nodes.providerHarnesses.innerHTML, /0\.00%/)
+  assert.doesNotMatch(nodes.providerHarnesses.innerHTML, /metric-(best|worst)|Best|Worst/)
+  assert.match(nodes.providerTable.innerHTML, /extreme-label/)
 
   assert.throws(() => ui.paint({
     ...healthy,

@@ -3,6 +3,7 @@
 
 import { DIRECTIONS, metricValue, extrema, extremum } from "./comparison.js"
 import { providerView } from "./providers.js"
+import { rankedModels } from "./model-marks.js"
 import { explainFor, COLS, CARD_SORTS } from "./explain.js"
 import { pageLanguage, languageTags, translate } from "./i18n.mjs"
 
@@ -281,7 +282,42 @@ function paintKpis(d) {
     .join("")
 }
 
+function cardModels(a) {
+  const models = rankedModels(a.models)
+  if (!models.length) return ""
+  return `<div class="model-strip" role="group" aria-label="${esc(T("card.modelsRanked"))}">${models.map(m => {
+    const description = T("card.modelUsage", { model: m.name, count: int(m.count), share: pct(a.calls ? m.count / a.calls : 0) })
+    const glyph = m.icon ? mark({ name: m.name, icon: m.icon }, 28) : `<span class="model-alias" aria-hidden="true">${esc(m.name === "unknown" ? "?" : m.name.slice(0,2).toUpperCase())}</span>`
+    return `<button type="button" class="tip model-chip" aria-label="${esc(description)}" aria-expanded="false" data-model-name="${esc(m.name)}" data-model-count="${m.count}">${glyph}<span class="tip-body">${esc(description)}</span></button>`
+  }).join("")}</div>`
+}
+const modelStripResize = new ResizeObserver(entries => entries.forEach(({ target }) => updateModelFade(target)))
+function updateModelFade(strip) {
+  strip.style.setProperty("--model-fade-start", strip.scrollLeft > 1 ? "20px" : "0px")
+  strip.style.setProperty("--model-fade-end", strip.scrollWidth - strip.clientWidth - strip.scrollLeft > 1 ? "28px" : "0px")
+}
+function wireModelStrips() {
+  modelStripResize.disconnect()
+  for (const strip of $("cards").querySelectorAll(".model-strip")) {
+    strip.addEventListener("scroll", () => updateModelFade(strip), { passive: true })
+    strip.addEventListener("keydown", e => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return
+      const chips = [...strip.querySelectorAll("button")], index = chips.indexOf(document.activeElement)
+      const next = e.key === "Home" ? 0 : e.key === "End" ? chips.length - 1 : Math.max(0, Math.min(chips.length - 1, index + (e.key === "ArrowRight" ? 1 : -1)))
+      e.preventDefault()
+      chips[next]?.scrollIntoView({ block: "nearest", inline: "nearest" })
+      chips[next]?.focus({ preventScroll: true })
+    })
+    modelStripResize.observe(strip)
+    updateModelFade(strip)
+  }
+}
+
 function paintCards(d) {
+  const focusedModel = document.activeElement?.dataset.modelName
+  const focusedAgent = document.activeElement?.closest(".card")?.dataset.agent
+  const scrolls = new Map([...$("cards").querySelectorAll(".card")].map(card => [card.dataset.agent, card.querySelector(".model-strip")?.scrollLeft || 0]))
+  if (activeTip && $("cards").contains(activeTip.trigger)) closeTip()
   const max = Math.max(...d.agents.map((a) => a.prompt), 1)
   const metric = state.cardSort
   const sorted = [...d.agents].sort((x, y) => cardVal(y, state.cardSort) - cardVal(x, state.cardSort))
@@ -294,7 +330,7 @@ function paintCards(d) {
       const value = metricValue(a, metric)
       return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" data-agent="${esc(a.agent)}" aria-label="${esc(T("card.detailsAria", { name: a.name || a.agent }))}">
         <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${live ? activityBadge(a.agent) : ""}${top1 ? `<span class="tag">${esc(T("card.topSpender"))}</span>` : ""}</div>
-        <div class="card-big num">${formatMetric(value, metric)}<small>${esc(T(`col.${metric}`))}</small></div>
+        <div class="card-value-row"><div class="card-big num">${formatMetric(value, metric)}<small>${esc(T(`col.${metric}`))}</small></div>${cardModels(a)}</div>
         ${metric === "prompt" ? `<div class="stack" title="${esc(T("card.stackLegend"))}"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>` : ""}
         ${metric === "taskDuration" ? `<p class="task-context hint">${esc(value === null ? taskEmpty(a) : taskSamples(a))}</p>` : ""}
         <div class="card-meta">
@@ -306,6 +342,15 @@ function paintCards(d) {
       </div>`
     })
     .join("")
+  for (const card of $("cards").querySelectorAll(".card")) {
+    const strip = card.querySelector(".model-strip")
+    if (strip) strip.scrollLeft = scrolls.get(card.dataset.agent) || 0
+    if (focusedModel && card.dataset.agent === focusedAgent) {
+      const replacement = [...card.querySelectorAll(".model-chip")].find(chip => chip.dataset.modelName === focusedModel)
+      queueMicrotask(() => replacement?.isConnected && replacement.focus({ preventScroll: true }))
+    }
+  }
+  wireModelStrips()
 }
 
 function formatMetric(value, key) {

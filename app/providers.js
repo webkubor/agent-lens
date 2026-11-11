@@ -8,13 +8,11 @@ export function providerView({ T, esc, int, pct, locale, mark, onModelChange }) 
   let data, provider = "", agent = "", sharing = false, available = false, reasonsOpen = false
   const name = id => data.agents.find(a => a.agent === id)?.name || id
   const providerName = id => id === "unknown" ? T("providers.unknown") : id
-  let providerOptions = "", modelOptions = ""
+  let modelOptions = "", expanded = false
   const richPicker = globalThis.CSS?.supports("appearance", "base-select") ?? false
   const providerMark = (id, size = 24) => mark({ agent: id, name: providerName(id), icon: PROVIDER_ICONS[id] }, size)
+  const rate = value => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "—"
   const option = (value, label) => `<option value="${esc(value)}">${esc(label)}</option>`
-  const providerOption = id => richPicker
-    ? `<option value="${esc(id)}">${providerMark(id)}<span>${esc(providerName(id))}</span></option>`
-    : option(id, providerName(id))
   const pickerButton = richPicker ? '<button type="button"><selectedcontent></selectedcontent></button>' : ""
   const reasonLabel = r => r.status >= 400 ? `${T(`reason.${r.reason}`)} · HTTP ${r.status}`
     : r.status === 200 ? `${T(`reason.${r.reason}`)} · ${T("providers.midStream")}`
@@ -27,22 +25,18 @@ export function providerView({ T, esc, int, pct, locale, mark, onModelChange }) 
     $("providerUnavailable").hidden = available
     $("providerReport").hidden = !available
     $("providerModel").disabled = !available
+    $("providerPicker").hidden = !available
     if (!available) {
       provider = agent = ""
-      providerOptions = modelOptions = ""
+      modelOptions = ""
       $("providerReportMark").innerHTML = ""
       reasonsOpen = false
       share(false)
-      for (const id of ["providerSelect", "providerModel", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons"]) $(id).innerHTML = ""
-      $("providerSelect").disabled = true
+      for (const id of ["providerGallery", "providerHarnesses", "providerModel", "providerReportTitle", "providerScope", "providerKpis", "providerTable", "providerReasons"]) $(id).innerHTML = ""
       $("providerShare").disabled = true
       return
     }
-    const nextProviders = pickerButton + view.providerOptions.map(providerOption).join("")
-    if (providerOptions !== nextProviders) $("providerSelect").innerHTML = providerOptions = nextProviders
     if (!view.providerOptions.includes(provider)) provider = view.providers[0]?.provider || ""
-    $("providerSelect").value = provider
-    $("providerSelect").disabled = !view.providerOptions.length
     // Preserve a selected model across an empty period so the empty state is explicit.
     const models = view.model && !view.models.includes(view.model) ? [...view.models, view.model] : view.models
     const nextModels = pickerButton + option("", T("providers.allModels")) + models.map(m => option(m, m)).join("")
@@ -53,24 +47,46 @@ export function providerView({ T, esc, int, pct, locale, mark, onModelChange }) 
   function render() {
     if (!available) return
     const focused = document.activeElement
+    const focusedProvider = focused?.dataset.provider
     const focusedAgent = focused?.dataset.providerAgent
+    const focusInCoverage = focused?.closest?.("#providerHarnesses")
     const focusedReason = focused?.id === "providerAll" || focused?.matches("#providerReasonDetail > summary")
     const p = data.providerView.providers.find(p => p.provider === provider)
+    const calls = new Map(data.providerView.providers.map(p => [p.provider, p.calls]))
+    const options = [...data.providerView.providerOptions].sort((a, b) =>
+      (calls.get(b) || 0) - (calls.get(a) || 0) || (a < b ? -1 : a > b ? 1 : 0))
+    // Keep a selected provider visible when the gallery is collapsed.
+    const initial = options.slice(0, 6)
+    if (provider && !initial.includes(provider)) initial.splice(5, 1, provider)
+    const visible = expanded ? options : initial
+    $("providerGallery").innerHTML = visible.map(id => {
+      const sample = data.providerView.providers.find(p => p.provider === id)
+      return `<button type="button" class="provider-tile" data-provider="${esc(id)}" aria-pressed="${id === provider}" aria-controls="providerReport">${providerMark(id, 36)}<span class="provider-tile-name">${esc(providerName(id))}</span><span class="provider-tile-meta">${int(sample?.harnesses.length || 0)} ${esc(T("providers.harnessCount"))} · ${int(sample?.calls || 0)} ${esc(T("providers.requests"))}</span><span class="provider-tile-state">${esc(T(id === provider ? "providers.selected" : "providers.viewReport"))}</span></button>`
+    }).join("")
+    $("providerExpand").hidden = options.length <= 6
+    $("providerExpand").textContent = expanded ? T("providers.showLess") : `${T("providers.showAll")} (${int(options.length)})`
+    $("providerExpand").setAttribute("aria-expanded", String(expanded))
     $("providerReportTitle").textContent = provider ? providerName(provider) : T("providers.title")
-    $("providerReportMark").innerHTML = provider ? providerMark(provider, 40) : ""
+    $("providerReportMark").innerHTML = provider ? providerMark(provider, 56) : ""
     $("providerScope").textContent = `${date(data.since)} — ${date(data.generatedAt)} · ${data.providerView.model || T("providers.allModels")} · ${$("clients").checked ? T("providers.withClients") : T("providers.agentsOnly")}`
     $("providerKpis").innerHTML = p ? [
-      [T("col.errorRate"), pct(p.errorRate), "report-primary"],
+      [T("col.errorRate"), rate(p.errorRate), "report-primary"],
+      [T("providers.harnessCount"), int(p.harnesses.length), ""],
       [T("col.calls"), int(p.calls), ""], [T("kpi.failed"), int(p.failed), ""],
       [T("providers.cancelled"), int(p.cancelled), ""],
     ].map(([label, value, className]) => `<div class="${className}"><dt>${esc(label)}</dt><dd class="num">${esc(value)}</dd></div>`).join("") : ""
     $("providerShare").disabled = !p
     if (!p) {
+      $("providerHarnesses").innerHTML = ""
       $("providerTable").innerHTML = ""
       $("providerReasons").innerHTML = `<p class="empty-note">${esc(T("providers.empty"))}</p>`
+      restoreProviderFocus(focusedProvider)
       return
     }
     const ranges = extrema(p.harnesses, ["errorRate"], (row, key) => row[key])
+    $("providerHarnesses").innerHTML = p.harnesses.map(a => {
+      return `<button type="button" class="provider-harness" data-provider-agent="${esc(a.agent)}" aria-controls="providerReasonDetail" aria-pressed="${agent === a.agent}"><span class="provider-harness-name">${mark(data.agents.find(row => row.agent === a.agent) || { agent: a.agent, name: name(a.agent) }, 32)}<strong>${esc(name(a.agent))}</strong></span><span class="provider-harness-rate"><span class="num">${rate(a.errorRate)}</span><span>${esc(T("col.errorRate"))}</span></span><span class="provider-harness-counts"><span>${int(a.calls)} ${esc(T("providers.requests"))}</span><span>${int(a.failed)} ${esc(T("kpi.failed"))} · ${int(a.cancelled)} ${esc(T("providers.cancelled"))}</span></span></button>`
+    }).join("")
     const cells = p.harnesses.map(a => {
       const edge = extremum(a.errorRate, ranges.errorRate, "low")
       const top = a.reasons[0]
@@ -81,12 +97,18 @@ export function providerView({ T, esc, int, pct, locale, mark, onModelChange }) 
     }).join("")
     $("providerTable").innerHTML = `<thead><tr>${["col.agent", "col.calls", "kpi.failed", "col.errorRate", "providers.cancelled", "providers.topReason"].map((k, i) => `<th scope="col"${i > 0 && i < 5 ? ' class="n"' : ""}>${esc(T(k))}</th>`).join("")}</tr></thead><tbody>${cells}</tbody>`
     renderReasons(p)
-    if (focusedAgent) {
-      const replacement = [...$("providerTable").querySelectorAll("[data-provider-agent]")].find(b => b.dataset.providerAgent === focusedAgent)
+    if (focusedProvider) restoreProviderFocus(focusedProvider)
+    else if (focusedAgent) {
+      const replacement = [...$(focusInCoverage ? "providerHarnesses" : "providerTable").querySelectorAll("[data-provider-agent]")].find(b => b.dataset.providerAgent === focusedAgent)
       replacement?.focus({ preventScroll: true })
     } else if (focusedReason) {
       $("providerReasonDetail")?.querySelector("summary")?.focus({ preventScroll: true })
     }
+  }
+  function restoreProviderFocus(id) {
+    if (!id) return
+    const replacement = [...$("providerGallery").querySelectorAll("[data-provider]")].find(b => b.dataset.provider === id)
+    replacement?.focus({ preventScroll: true })
   }
   function renderReasons(p) {
     if (!p.harnesses.some(a => a.agent === agent)) agent = ""
@@ -99,15 +121,23 @@ export function providerView({ T, esc, int, pct, locale, mark, onModelChange }) 
     $("providerReasonDetail")?.addEventListener("toggle", e => { reasonsOpen = e.target.open })
     $("providerAll")?.addEventListener("click", () => { agent = ""; render() })
   }
-  $("providerSelect").addEventListener("change", e => { provider = e.target.value; agent = ""; reasonsOpen = false; render() })
+  $("providerGallery").addEventListener("click", e => {
+    const button = e.target.closest("[data-provider]")
+    if (!button) return
+    provider = button.dataset.provider
+    agent = ""
+    reasonsOpen = false
+    render()
+  })
+  $("providerExpand").addEventListener("click", () => { expanded = !expanded; render() })
   $("providerModel").addEventListener("change", e => { agent = ""; reasonsOpen = false; onModelChange(e.target.value) })
-  $("providerTable").addEventListener("click", e => {
+  for (const id of ["providerTable", "providerHarnesses"]) $(id).addEventListener("click", e => {
     const button = e.target.closest("[data-provider-agent]")
     if (button) {
       agent = agent === button.dataset.providerAgent ? "" : button.dataset.providerAgent
       reasonsOpen = true
       render()
-      for (const b of $("providerTable").querySelectorAll("button")) if (b.dataset.providerAgent === agent) b.focus({ preventScroll: true })
+      for (const b of $(id).querySelectorAll("button")) if (b.dataset.providerAgent === button.dataset.providerAgent) b.focus({ preventScroll: true })
     }
   })
   function share(value) {

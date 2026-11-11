@@ -4,3 +4,10 @@ copied from the community plugin @magpie-community/page-agent-office
 @lobehub/icons (https://github.com/lobehub/lobe-icons, MIT, Copyright (c) 2023
 LobeHub). Each mark remains the trademark of its owner; it is shown only to
 name the agent it belongs to.
+
+Additional model-family marks (gemini-color.svg, openai.svg, xiaomimimo.svg,
+nvidia-color.svg, zai.svg, inception.svg) were copied unchanged from
+https://github.com/lobehub/lobe-icons/tree/master/packages/static-svg/icons
+on 2026-11-11, under the same MIT license. These identify models, not the
+harness that sent the request. Embedded copies in model-icons.js and
+provider-icons.js preserve the original SVG content for host sandbox support.
