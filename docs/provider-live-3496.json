@@ -1,0 +1,87 @@
+{
+  "origin": "http://127.0.0.1:3496",
+  "commit": "2cd02f2e77699da71329bfd0d1cd69459c7e0de9",
+  "observedAt": "2026-11-11T10:26:38.105Z",
+  "dataSource": "Actual local usage ledger; no mocked responses or new gateway benchmark",
+  "userOriginalTabRefreshed": false,
+  "notes": [
+    "The initial script selected an unrelated global model and correctly observed an empty state.",
+    "The shared 3496 host changed PID externally during validation; only this dedicated page was refreshed after recovery."
+  ],
+  "checks": [
+    {
+      "step": "provider and model filters",
+      "provider": "minimax-code",
+      "model": "MiniMax-M3.1-Flash",
+      "passed": true
+    },
+    {
+      "step": "harness error detail disclosure",
+      "summary": "错误原因分布 · dsh40",
+      "passed": true
+    },
+    {
+      "step": "viewport and theme",
+      "viewport": 1120,
+      "documentWidth": 1120,
+      "theme": "dark",
+      "tableWidth": 1070,
+      "tableContentWidth": 1070,
+      "detailsCollapsed": true,
+      "reportVisible": true,
+      "passed": true
+    },
+    {
+      "step": "viewport and theme",
+      "viewport": 1120,
+      "documentWidth": 1120,
+      "theme": "light",
+      "tableWidth": 1070,
+      "tableContentWidth": 1070,
+      "detailsCollapsed": true,
+      "reportVisible": true,
+      "passed": true
+    },
+    {
+      "step": "viewport and theme",
+      "viewport": 390,
+      "documentWidth": 390,
+      "theme": "dark",
+      "tableWidth": 360,
+      "tableContentWidth": 680,
+      "detailsCollapsed": true,
+      "reportVisible": true,
+      "passed": true
+    },
+    {
+      "step": "viewport and theme",
+      "viewport": 390,
+      "documentWidth": 390,
+      "theme": "light",
+      "tableWidth": 360,
+      "tableContentWidth": 680,
+      "detailsCollapsed": true,
+      "reportVisible": true,
+      "passed": true
+    },
+    {
+      "step": "horizontal wheel stays inside table",
+      "table": 320,
+      "document": 0,
+      "documentWidth": 390,
+      "passed": true
+    },
+    {
+      "step": "uncaught browser errors",
+      "errors": [],
+      "passed": true
+    }
+  ],
+  "screenshots": [
+    "provider-live-3496-detail.png",
+    "provider-live-3496-1120-dark.png",
+    "provider-live-3496-1120-light.png",
+    "provider-live-3496-390-dark.png",
+    "provider-live-3496-390-light.png"
+  ]
+}
