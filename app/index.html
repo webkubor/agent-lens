@@ -19,6 +19,7 @@
     <div>
       <h1>HarnessWeight</h1>
       <p class="status wait" id="status" role="status" data-t="status.loading">正在读取…</p>
+      <div class="telemetry" id="telemetry" role="group" aria-label-t="telemetry.label"></div>
       <p class="sub" data-t="header.sub">同一个网关后面，每个 agent harness 读了多少 token、命中多少缓存、失败多少次、每轮重发多重的工具定义。</p>
     </div>
   </div>
@@ -52,6 +53,7 @@
     <div class="cards" id="cards"></div>
     <div id="comparison" hidden>
       <div id="metricGroups" class="sortbar" role="group" aria-label-t="table.categories"></div>
+      <p class="hint" id="taskCompareHint" data-t="task.sortHint" hidden></p>
       <p class="hint" data-t="table.hint"></p>
       <details class="comparison-notes"><summary data-t="table.guide"></summary><p class="hint" data-t="table.extrema"></p></details>
       <div class="table-wrap comparison-scroll" tabindex="0" role="region" aria-labelledby="comparison-caption"><table id="table"></table></div>

@@ -6,14 +6,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createHandler, TOKEN_HEADER } from "../service.mjs"
 import { createTaskCollector } from "../lib/task-duration.mjs"
-import { tasksLog } from "../lib/paths.mjs"
+import { tasksLog, toolsLog } from "../lib/paths.mjs"
 
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), "hw-task-api-"))
   t.after(() => rm(dir, { recursive: true, force: true }))
   const usageLog = join(dir, "usage.jsonl")
   await writeFile(usageLog, JSON.stringify({ t: new Date().toISOString(), agent: "cursor", model: "m", status: 200, in: 1, out: 2, ms: 999, session: "unrelated-session" }) + "\n")
-  return { dir, options: { dataDir: dir, usageLog, gatewayUrl: "http://127.0.0.1:1", token: "test-token" } }
+  return { dir, options: { dataDir: dir, usageLog, codexSessionsDir: join(dir, "empty-codex"), gatewayUrl: "http://127.0.0.1:1", token: "test-token" } }
 }
 
 async function start(t, options) {
@@ -32,6 +32,14 @@ test("HTTP summary reads real task events, refreshes completions and preserves b
   const noTelemetry = await (await first.get()).json()
   assert.equal(noTelemetry.agents[0].taskDuration.averageMs, null)
   assert.equal(noTelemetry.agents[0].taskDuration.samples, 0)
+  assert.equal(noTelemetry.telemetry.request.state, "observed")
+  assert.equal(noTelemetry.telemetry.tools.state, "missing")
+  assert.equal(noTelemetry.telemetry.tasks.eventLog.state, "missing")
+  assert.equal(noTelemetry.telemetry.tasks.codex.state, "no-completions")
+  await writeFile(tasksLog({ dataDir: f.dir }), "")
+  const emptyLog = await (await first.get()).json()
+  assert.equal(emptyLog.telemetry.tasks.eventLog.state, "no-events")
+  assert.equal(emptyLog.agents[0].taskDuration.coverage, "unavailable")
   assert.equal(noTelemetry.agents[0].p50ms, 999)
   const at = Date.now()
   const collect = createTaskCollector()
@@ -39,6 +47,8 @@ test("HTTP summary reads real task events, refreshes completions and preserves b
   await emit("a", "started", at - 60_000)
   await emit("b", "started", at - 50_000)
   const pending = await (await first.get()).json()
+  assert.equal(pending.telemetry.tasks.eventLog.state, "observed")
+  assert.equal(pending.telemetry.tasks.eventLog.latestAt, at - 50_000)
   assert.equal(pending.agents[0].taskDuration.excluded.incomplete, 2)
   assert.equal(pending.agents[0].taskDuration.averageMs, null)
   await first.close()
@@ -91,6 +101,7 @@ test("task log read failure degrades task timing alone with an explicit reason",
   assert.equal(body.agents[0].taskDuration.averageMs, null)
   assert.equal(body.agents[0].taskDuration.reason, "read-error")
   assert.equal(body.taskTiming.readError, true)
+  assert.equal(body.telemetry.tasks.eventLog.state, "read-error")
   await rm(file, { recursive: true })
   const now = Date.now()
   const collect = createTaskCollector()
@@ -99,5 +110,34 @@ test("task log read failure degrades task timing alone with an explicit reason",
   }
   const recovered = await (await server.get()).json()
   assert.equal(recovered.taskTiming.readError, false)
+  assert.equal(recovered.telemetry.tasks.eventLog.state, "observed")
   assert.equal(recovered.agents[0].taskDuration.averageMs, 5000)
+})
+
+
+test("request and tool source errors are isolated and recover without stale data", async (t) => {
+  const f = await fixture(t)
+  const toolFile = toolsLog({ dataDir: f.dir })
+  await mkdir(toolFile, { recursive: true })
+  const server = await start(t, f.options)
+  let body = await (await server.get()).json()
+  assert.equal(body.telemetry.request.state, "observed")
+  assert.equal(body.telemetry.tools.state, "read-error")
+  assert.equal(body.agents[0].calls, 1)
+  await rm(toolFile, { recursive: true })
+  await writeFile(toolFile, JSON.stringify({ t: Date.now(), agent: "cursor", bytes: 20 }) + "\n")
+  body = await (await server.get()).json()
+  assert.equal(body.telemetry.tools.state, "observed")
+  await rm(f.options.usageLog)
+  await mkdir(f.options.usageLog)
+  body = await (await server.get()).json()
+  assert.equal(body.telemetry.request.state, "read-error")
+  assert.equal(body.telemetry.tools.state, "observed")
+  assert.equal(body.sources.usageRows, 0)
+  await rm(f.options.usageLog, { recursive: true })
+  body = await (await server.get()).json()
+  assert.equal(body.telemetry.request.state, "missing")
+  await writeFile(f.options.usageLog, "")
+  body = await (await server.get()).json()
+  assert.equal(body.telemetry.request.state, "no-events")
 })

@@ -63,3 +63,12 @@ arrow/Home/End keys, reveals the focused item and preserves focus on refresh.
 The provider area uses visible large brand tiles and a provider-led share report,
 with per-Harness request/error/cancellation evidence. These are observations,
 not a synthetic compatibility score or a controlled model comparison.
+
+Decision, 2026-11-12 (collection health and timing semantics): show request,
+tool, generic task-event and Codex completion observations separately, including
+missing logs and read failures. Page generation time is not event freshness.
+Missing events do not establish whether a hook is installed. The automatically
+read Codex metric is a completed user turn, while an optional Cursor hook measures
+a completed generation. Display source and valid sample count, group timing sorts
+by source, and do not apply best/worst colors. If more than one source contributes
+valid completions to the same agent, suppress the combined mean and explain why.

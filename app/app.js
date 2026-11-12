@@ -4,6 +4,7 @@
 import { DIRECTIONS, metricValue, extrema, extremum } from "./comparison.js"
 import { providerView } from "./providers.js"
 import { rankedModels } from "./model-marks.js"
+import { taskSource, taskEmptyKey, compareTaskSources } from "./telemetry.js"
 import { explainFor, COLS, CARD_SORTS } from "./explain.js"
 import { pageLanguage, languageTags, translate } from "./i18n.mjs"
 
@@ -69,19 +70,17 @@ function dur(ms) {
   if (h < 24) return `${h.toFixed(1)}${esc(T("dur.hour"))}`
   return `${(h / 24).toFixed(1)}${esc(T("dur.day"))}`
 }
-function taskEmpty(a) {
-  const t = a.taskDuration
-  if (!t) return T("task.unavailable")
-  if (t.reason === "read-error") return T("task.readError")
-  return T(t.coverage === "observed" ? "task.noCompleted" : "task.noData")
-}
+function taskEmpty(a) { return T(taskEmptyKey(a)) }
+function taskSourceText(a) { return T(`task.source.${taskSource(a)}`) }
+function taskMetricLabel(a) { const source = taskSource(a); return T(source === "codex" ? "task.codexMetric" : source === "cursor" ? "task.cursorMetric" : "col.taskDuration") }
 function taskSamples(a) {
-  return T("task.samples", { count: int(a.taskDuration?.samples ?? 0) })
+  const source = taskSource(a)
+  const key = source === "codex" ? "task.codexSamples" : source === "cursor" ? "task.cursorSamples" : "task.samples"
+  return T(key, { count: int(a.taskDuration?.samples ?? 0) })
 }
-function taskValue(a, ranges) {
+function taskValue(a) {
   const value = metricValue(a, "taskDuration")
-  const edge = extremum(value, ranges.taskDuration, DIRECTIONS.taskDuration)
-  return `<b class="num"${edge ? ` style="color:var(--${edge.quality})"` : ""}>${dur(value)}</b>`
+  return `<b class="num">${dur(value)}</b>`
 }
 
 function when(at) {
@@ -222,12 +221,18 @@ function paint() {
   $("state").hidden = true
   providers.paint(d)
   paintStatus(d)
-  for (const id of ["agentsBlock", "toolsBlock"]) $(id).hidden = !d.agents.length
+  const readError = d.telemetry && [d.telemetry.request, d.telemetry.tools, d.telemetry.tasks?.eventLog, d.telemetry.tasks?.codex].some(source => source?.state === "read-error")
+  const requestsUnavailable = ["missing", "read-error"].includes(d.telemetry?.request?.state)
+  const toolsUnavailable = ["missing", "read-error"].includes(d.telemetry?.tools?.state)
+  $("insights").hidden = $("kpis").hidden = $("providersBlock").hidden = requestsUnavailable
+  $("agentsBlock").hidden = !d.agents.length || requestsUnavailable
+  $("toolsBlock").hidden = !d.agents.length || toolsUnavailable
+  if (requestsUnavailable) showState(T("state.requestUnavailable"))
+  else if (readError) showState(T("state.partialReadError"))
   if (!d.agents.length) {
     for (const id of ["insights", "kpis", "cards", "tools"]) $(id).innerHTML = ""
     $("table").innerHTML = ""
-    $("status").textContent = T("status.empty")
-    showState(T("state.noAgents"))
+    showState(T(requestsUnavailable ? "state.requestUnavailable" : readError ? "state.partialReadError" : "state.noAgents"))
     return
   }
   paintInsights(d)
@@ -252,12 +257,19 @@ function ago(t) {
   return T("time.daysAgo", { n: Math.round(s / 86400) })
 }
 function paintStatus(d) {
-  const fresh = d.lastTool && Date.now() - d.lastTool < 15 * 60e3
   const el = $("status")
-  el.className = "status " + (fresh ? "live" : d.lastTool ? "idle" : "wait")
-  el.textContent = fresh ? T("status.collecting", { usage: ago(d.lastUsage), tool: ago(d.lastTool) })
-    : d.lastTool ? T("status.stale", { tool: ago(d.lastTool) })
-    : T("status.waiting")
+  el.className = "status wait"
+  el.textContent = T("telemetry.generated", { time: new Date(d.generatedAt).toLocaleTimeString(LOCALE) })
+  const values = d.telemetry || {}
+  const items = [
+    ["request", values.request, "latestAt"], ["tools", values.tools, "latestAt"],
+    ["taskLog", values.tasks?.eventLog, "latestAt"], ["codex", values.tasks?.codex, "latestCompletedAt"],
+  ]
+  $("telemetry").innerHTML = items.map(([key, source, timeKey]) => {
+    const status = source?.state || "unavailable"
+    const message = status === "observed" ? T(key === "codex" ? "telemetry.completed" : "telemetry.observed", { time: ago(source[timeKey]) }) : T(`telemetry.${status}`)
+    return `<span class="telemetry-item${status === "read-error" ? " is-error" : ""}"><b>${esc(T(`telemetry.${key}`))}</b> ${esc(message)}</span>`
+  }).join("")
 }
 
 function paintInsights(d) {
@@ -320,7 +332,13 @@ function paintCards(d) {
   if (activeTip && $("cards").contains(activeTip.trigger)) closeTip()
   const max = Math.max(...d.agents.map((a) => a.prompt), 1)
   const metric = state.cardSort
-  const sorted = [...d.agents].sort((x, y) => cardVal(y, state.cardSort) - cardVal(x, state.cardSort))
+  const sorted = [...d.agents].sort((x, y) => {
+    if (metric === "taskDuration" && metricValue(x, metric) !== null && metricValue(y, metric) !== null) {
+      const group = compareTaskSources(x, y)
+      if (group) return group
+    }
+    return cardVal(y, metric) - cardVal(x, metric)
+  })
   $("cards").innerHTML = sorted
     .map((a, i) => {
       const w = (a.prompt / max) * 100
@@ -330,9 +348,9 @@ function paintCards(d) {
       const value = metricValue(a, metric)
       return `<div class="card${top1 ? " top1" : ""}${live ? " live" : ""}" data-agent="${esc(a.agent)}" aria-label="${esc(T("card.detailsAria", { name: a.name || a.agent }))}">
         <div class="card-head"><span class="card-name">${mark(a, 22)}${label(a)}</span>${live ? activityBadge(a.agent) : ""}${top1 ? `<span class="tag">${esc(T("card.topSpender"))}</span>` : ""}</div>
-        <div class="card-value-row"><div class="card-big num">${formatMetric(value, metric)}<small>${esc(T(`col.${metric}`))}</small></div>${cardModels(a)}</div>
+        <div class="card-value-row"><div class="card-big num">${formatMetric(value, metric)}<small>${esc(metric === "taskDuration" ? taskMetricLabel(a) : T(`col.${metric}`))}</small></div>${cardModels(a)}</div>
         ${metric === "prompt" ? `<div class="stack" title="${esc(T("card.stackLegend"))}"><span class="cached" style="width:${(w - fullW).toFixed(2)}%"></span><span class="full" style="width:${fullW.toFixed(2)}%"></span></div>` : ""}
-        ${metric === "taskDuration" ? `<p class="task-context hint">${esc(value === null ? taskEmpty(a) : taskSamples(a))}</p>` : ""}
+        ${metric === "taskDuration" ? `<p class="task-context hint">${esc(value === null ? taskEmpty(a) : `${taskSourceText(a)} · ${taskSamples(a)}`)}</p>` : ""}
         <div class="card-meta">
           <div><b class="num">${pct(metricValue(a, "cacheRate"))}</b>${tip("cacheRate", esc(T("col.cacheRate")))}</div>
           <div><b class="num">${short(metricValue(a, "avgPrompt"))}</b>${tip("avgPrompt", esc(T("col.avgPrompt")))}</div>
@@ -363,6 +381,7 @@ const val = (a, k) => k === "agent" ? a.name || a.agent : k === "protocol" ? a.p
 const cardVal = (a, k) => metricValue(a, k) ?? -1
 function paintView() {
   const cards = state.view === "cards"
+  $("cardsHint").textContent = T(state.cardSort === "taskDuration" ? "task.sortHint" : "cards.hint")
   for (const id of ["cards", "cardSort", "cardsHint", "activityInfo"]) $(id).hidden = !cards
   $("comparison").hidden = cards
   for (const b of $("agentView").children) b.setAttribute("aria-pressed", String(b.dataset.view === state.view))
@@ -377,8 +396,8 @@ function paintCardSort() {
 
 function metricCell(a, key, formatted, ranges) {
   const value = metricValue(a, key)
-  const edge = extremum(value, ranges[key], DIRECTIONS[key])
-  const note = key === "taskDuration" && value !== null ? `<span class="extreme-label">${esc(taskSamples(a))}</span>` : ""
+  const edge = key === "taskDuration" ? null : extremum(value, ranges[key], DIRECTIONS[key])
+  const note = key === "taskDuration" ? `<span class="extreme-label">${esc(value === null ? taskEmpty(a) : `${taskSourceText(a)} · ${taskSamples(a)}`)}</span>` : ""
   return `<td class="n ${edge ? `metric-${edge.quality}` : ""}" data-metric="${key}"${key === "taskDuration" && value === null ? ` title="${esc(taskEmpty(a))}"` : ""}>${value === null ? "—" : formatted}${note}${edge ? `<span class="extreme-label" title="${esc(T(`extreme.${edge.edge}`))}">${esc(T(`extreme.${edge.quality}`))}</span>` : ""}</td>`
 }
 
@@ -391,6 +410,7 @@ const TABLE_GROUPS = [
 const tableCols = [COLS[0], ...TABLE_GROUPS.flatMap(([, keys]) => keys.map(k => COLS.find(([key]) => key === k)))]
 function paintMetricGroup() {
   const keys = TABLE_GROUPS.find(([group]) => group === state.metricGroup)[1]
+  $("taskCompareHint").hidden = state.metricGroup !== "tasks"
   $("metricGroups").innerHTML = TABLE_GROUPS.map(([group]) => `<button type="button" class="pill${group === state.metricGroup ? " on" : ""}" data-metric-group="${group}" aria-pressed="${group === state.metricGroup}">${esc(T(`table.group.${group}`))}</button>`).join("")
   for (const row of $("table").rows) {
     if (row.classList.contains("column-groups")) {
@@ -406,13 +426,15 @@ function sortTable() {
   const collator = new Intl.Collator(LOCALE, { numeric: true, sensitivity: "base" })
   const body = $("table").tBodies[0]
   const rows = [...body.rows].sort((x, y) => {
-    const a = val(agents.get(x.dataset.agent), key), b = val(agents.get(y.dataset.agent), key)
+    const agentA = agents.get(x.dataset.agent), agentB = agents.get(y.dataset.agent)
+    const a = val(agentA, key), b = val(agentB, key)
     if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1
+    if (key === "taskDuration") { const group = compareTaskSources(agentA, agentB); if (group) return group }
     return (typeof a === "string" ? collator.compare(a, b) : a - b) * dir
   })
   for (const row of rows) body.moveBefore ? body.moveBefore(row, null) : body.append(row)
   for (const th of $("table").querySelectorAll("th[data-key]")) {
-    if (th.dataset.key === key) th.setAttribute("aria-sort", dir < 0 ? "descending" : "ascending")
+    if (th.dataset.key === key) th.setAttribute("aria-sort", key === "taskDuration" ? "other" : dir < 0 ? "descending" : "ascending")
     else th.removeAttribute("aria-sort")
   }
 }
@@ -470,11 +492,10 @@ function openDetail(agent, focus = true) {
   const toolNames = a.tools?.names || []
   const cache = Math.max(0, Math.min(100, a.cacheRate * 100))
   const failure = a.calls ? a.failed / a.calls : 0
-  const taskRanges = extrema(state.data.agents)
   $("detail").innerHTML = `<div class="detail detail-guide">
     <header class="detail-heading"><h3 class="who">${mark(a,32)}${label(a)}</h3><p class="hint">${when(a.first ?? state.data.since)} — ${when(a.last ?? state.data.generatedAt)} · ${esc(T('detail.selectedPeriod'))}</p></header>
     <div class="detail-summary"><strong>${esc(T('detail.summaryRequests', { calls: int(a.calls) }))}</strong><p>${esc(T('detail.summaryBody', { avg: short(a.avgPrompt), cache: pct(a.cacheRate), failed: int(a.failed), cancelled: int(a.cancelled) }))}</p><small>${esc(T('detail.summaryNote'))}</small></div>
-    <section class="sec" data-task-duration><h4>${esc(T('detail.taskTitle'))} ${tip('taskDuration')}</h4><div class="detail-metrics"><div><span>${esc(T('col.taskDuration'))}</span>${taskValue(a, taskRanges)}</div><div><span>${esc(T('task.completed'))}</span><b>${int(a.taskDuration?.samples ?? 0)}</b></div><div><span>${esc(T('task.total'))}</span><b>${dur(a.taskDuration?.totalMs)}</b></div></div>${metricValue(a, "taskDuration") === null ? `<p class="empty-note">${esc(taskEmpty(a))}</p>` : ""}<p class="hint">${esc(T('detail.taskNote'))}</p>${a.taskDuration?.sources?.includes('codex-rollout') ? `<p class="hint">${esc(T('detail.codexTaskSource', { ms: int(a.taskDuration.precision?.millisecond ?? 0), sec: int(a.taskDuration.precision?.second ?? 0) }))}</p>` : ''}</section>
+    <section class="sec" data-task-duration><h4>${esc(T('detail.taskTitle'))} ${tip('taskDuration')}</h4><div class="detail-metrics"><div><span>${esc(taskMetricLabel(a))}</span>${taskValue(a)}</div><div><span>${esc(T('task.completed'))}</span><b>${int(a.taskDuration?.samples ?? 0)}</b></div><div><span>${esc(T('task.total'))}</span><b>${dur(a.taskDuration?.totalMs)}</b></div></div>${metricValue(a, "taskDuration") === null ? `<p class="empty-note">${esc(taskEmpty(a))}</p>` : ""}<p class="hint">${esc(taskSourceText(a))} · ${esc(T('detail.taskNote'))}</p>${a.taskDuration?.sources?.includes('codex-rollout') ? `<p class="hint">${esc(T('detail.codexTaskSource', { ms: int(a.taskDuration.precision?.millisecond ?? 0), sec: int(a.taskDuration.precision?.second ?? 0) }))}</p>` : ''}</section>
     <section class="sec"><h4>${esc(T('detail.inputTitle'))} ${tip('prompt')}</h4>
       <div class="detail-metrics"><div><span>${esc(T('detail.totalInput'))}</span><b>${short(a.prompt)}</b></div><div><span>${esc(T('detail.avgInput'))}</span><b>${short(a.avgPrompt)}</b></div><div><span>${esc(T('detail.generatedOutput'))}</span><b>${short(a.out)}</b></div></div>
       ${a.prompt ? `<div class="composition" aria-label="${esc(T('explain.cacheRate.title'))} ${pct(a.cacheRate)}"><span style="width:${cache}%"></span><span style="width:${100-cache}%"></span></div>
@@ -599,6 +620,7 @@ $("cardSort").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-sort]")
   if (!b || b.dataset.sort === state.cardSort) return
   state.cardSort = b.dataset.sort
+  paintView()
   paintCardSort()
   paintCards(state.data)
   wireTips($("cards"))
@@ -626,7 +648,7 @@ $("table").addEventListener("click", (e) => {
     const k = button.dataset.tableSort
     state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : 1 }
     sortTable()
-    $("sortStatus").textContent = T("table.sorted", { column: T(tableCols.find(([key]) => key === k)[1]), direction: T(state.sort.dir < 0 ? "sort.descending" : "sort.ascending"), count: state.data.agents.length })
+    $("sortStatus").textContent = k === "taskDuration" ? T("task.sortedBySource") : T("table.sorted", { column: T(tableCols.find(([key]) => key === k)[1]), direction: T(state.sort.dir < 0 ? "sort.descending" : "sort.ascending"), count: state.data.agents.length })
     return
   }
   const a = pick(e)

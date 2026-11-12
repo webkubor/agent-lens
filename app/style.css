@@ -558,3 +558,9 @@ summary:focus-visible, .comparison-scroll:focus-visible { outline: 2px solid var
 .model-chip .mark { pointer-events: none; }
 .model-chip .mark img { background: #fff; border-radius: 5px; padding: 2px; }
 .model-alias { display: grid; place-items: center; width: 28px; height: 28px; color: var(--muted); font-size: 12px; font-weight: 650; }
+
+/* Independent observations: freshness is not proof that every source is configured. */
+.telemetry { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.telemetry-item { display: inline-flex; flex-wrap: wrap; gap: 3px; line-height: 1.45; }
+.telemetry-item b { color: var(--fg); font-weight: 600; }
+.telemetry-item.is-error, .telemetry-item.is-error b { color: var(--danger); }
